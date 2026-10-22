@@ -61,7 +61,8 @@ namespace Replicant909
         "RIM SHOT", "HAND CLAP", "CLOSED HI-HAT", "OPEN HI-HAT", "CRASH CYMBAL", "RIDE CYMBAL"
     };
 
-    // Standard TR-909 MIDI Note Mapping
+    // Standard TR-909 MIDI Note Mapping (with multi-octave tolerance & chromatic mapping)
+    // Primary TR-909 / General MIDI range:
     // BD: 35 & 36
     // SD: 38 & 40
     // RS: 37
@@ -75,6 +76,7 @@ namespace Replicant909
     // RC: 51
     inline int midiNoteToInstrument(int noteNumber) noexcept
     {
+        // 1. Exact GM / TR-909 standard notes (35..51)
         switch (noteNumber)
         {
             case 35: case 36: return BD;
@@ -88,8 +90,74 @@ namespace Replicant909
             case 48: case 50: return HT;
             case 49:          return CC;
             case 51:          return RC;
-            default:          return -1;
         }
+
+        // 2. Transposed by 1 octave (+12 or -12 semitones)
+        switch (noteNumber - 12)
+        {
+            case 35: case 36: return BD;
+            case 38: case 40: return SD;
+            case 37:          return RS;
+            case 39:          return CP;
+            case 42: case 44: return CH;
+            case 46:          return OH;
+            case 41: case 43: return LT;
+            case 45: case 47: return MT;
+            case 48: case 50: return HT;
+            case 49:          return CC;
+            case 51:          return RC;
+        }
+        switch (noteNumber + 12)
+        {
+            case 35: case 36: return BD;
+            case 38: case 40: return SD;
+            case 37:          return RS;
+            case 39:          return CP;
+            case 42: case 44: return CH;
+            case 46:          return OH;
+            case 41: case 43: return LT;
+            case 45: case 47: return MT;
+            case 48: case 50: return HT;
+            case 49:          return CC;
+            case 51:          return RC;
+        }
+
+        // 3. Transposed by 2 octaves (+24 or -24 semitones) for DAWs with C3/C4 base
+        switch (noteNumber - 24)
+        {
+            case 35: case 36: return BD;
+            case 38: case 40: return SD;
+            case 37:          return RS;
+            case 39:          return CP;
+            case 42: case 44: return CH;
+            case 46:          return OH;
+            case 41: case 43: return LT;
+            case 45: case 47: return MT;
+            case 48: case 50: return HT;
+            case 49:          return CC;
+            case 51:          return RC;
+        }
+        switch (noteNumber + 24)
+        {
+            case 35: case 36: return BD;
+            case 38: case 40: return SD;
+            case 37:          return RS;
+            case 39:          return CP;
+            case 42: case 44: return CH;
+            case 46:          return OH;
+            case 41: case 43: return LT;
+            case 45: case 47: return MT;
+            case 48: case 50: return HT;
+            case 49:          return CC;
+            case 51:          return RC;
+        }
+
+        // 4. Chromatic keyboard audition (Middle C: 60..70)
+        // 60: BD, 61: SD, 62: LT, 63: MT, 64: HT, 65: RS, 66: CP, 67: CH, 68: OH, 69: CC, 70: RC
+        if (noteNumber >= 60 && noteNumber <= 70)
+            return noteNumber - 60;
+
+        return -1;
     }
 
     inline int instrumentToDefaultMidiNote(int inst) noexcept

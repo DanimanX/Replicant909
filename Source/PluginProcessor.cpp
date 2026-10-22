@@ -27,6 +27,10 @@ namespace Replicant909
 
     bool PluginProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
     {
+        // An instrument synthesizer has no input channels
+        if (!layouts.getMainInputChannelSet().isDisabled())
+            return false;
+
         // Master bus must be stereo or mono
         const auto& master = layouts.getMainOutputChannelSet();
         if (master != juce::AudioChannelSet::stereo() && master != juce::AudioChannelSet::mono())
@@ -151,13 +155,21 @@ namespace Replicant909
         activeBusesMask = 1u; // Master is bit 0
         int numOutputBuses = getBusCount(false);
 
+        std::array<juce::AudioBuffer<float>, 10> indBusBuffers;
         for (int b = 1; b < numOutputBuses && b <= 10; ++b)
         {
-            auto indBuf = getBusBuffer(buffer, false, b);
-            if (getBus(false, b)->isEnabled() && indBuf.getNumChannels() > 0)
+            if (getBus(false, b)->isEnabled())
             {
-                activeBusesMask |= (1u << b);
-                individualBusPtrs[b - 1] = &indBuf;
+                indBusBuffers[b - 1] = getBusBuffer(buffer, false, b);
+                if (indBusBuffers[b - 1].getNumChannels() > 0)
+                {
+                    activeBusesMask |= (1u << b);
+                    individualBusPtrs[b - 1] = &indBusBuffers[b - 1];
+                }
+                else
+                {
+                    individualBusPtrs[b - 1] = nullptr;
+                }
             }
             else
             {
@@ -285,7 +297,7 @@ namespace Replicant909
             juce::ParameterID{ "SYNC_HOST", 1 }, "Sync to Host", false));
 
         params.push_back(std::make_unique<juce::AudioParameterBool>(
-            juce::ParameterID{ "JACK_CUT", 1 }, "Individual Jack Auto-Cut", true));
+            juce::ParameterID{ "JACK_CUT", 1 }, "Individual Jack Auto-Cut", false));
 
         params.push_back(std::make_unique<juce::AudioParameterChoice>(
             juce::ParameterID{ "SKIN", 1 }, "Panel Skin",

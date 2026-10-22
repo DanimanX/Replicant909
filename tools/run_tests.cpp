@@ -1,6 +1,7 @@
 #include <juce_core/juce_core.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <juce_gui_basics/juce_gui_basics.h>
+#include "../Source/PluginProcessor.h"
 #include "../Source/DSP/DrumEngine909.h"
 #include "../Source/DSP/GrooveSequencer909.h"
 #include "../Source/Presets/PresetBank909.h"
@@ -176,8 +177,39 @@ int main()
         std::cout << "PASSED" << std::endl;
     }
 
+    // Test 7: PluginProcessor DAW MIDI Input & Master Audio Generation
+    {
+        std::cout << "[TEST 7] PluginProcessor DAW MIDI Input & Master Output... ";
+        PluginProcessor processor;
+        processor.prepareToPlay(44100.0, 512);
+
+        // Simulate DAW buffer with all 11 output buses (22 channels)
+        juce::AudioBuffer<float> dawBuffer(22, 512);
+        dawBuffer.clear();
+
+        // Send MIDI Note On 36 (Bass Drum) and Note On 38 (Snare Drum)
+        juce::MidiBuffer midiMessages;
+        midiMessages.addEvent(juce::MidiMessage::noteOn(1, 36, (juce::uint8)120), 0);
+        midiMessages.addEvent(juce::MidiMessage::noteOn(1, 38, (juce::uint8)110), 10);
+        midiMessages.addEvent(juce::MidiMessage::noteOn(10, 60, (juce::uint8)100), 20); // Middle C on ch 10
+
+        processor.processBlock(dawBuffer, midiMessages);
+
+        // Check Master Bus (channels 0 & 1)
+        float masterL = dawBuffer.getRMSLevel(0, 0, 512);
+        float masterR = dawBuffer.getRMSLevel(1, 0, 512);
+
+        if (masterL < 0.01f && masterR < 0.01f)
+        {
+            std::cerr << "FAILED: Master output is silent upon MIDI note input! (L=" << masterL << ", R=" << masterR << ")" << std::endl;
+            return 1;
+        }
+
+        std::cout << "PASSED (Master L RMS: " << masterL << ", R RMS: " << masterR << ")" << std::endl;
+    }
+
     std::cout << "========================================" << std::endl;
-    std::cout << "ALL 6 REGRESSION TESTS PASSED!          " << std::endl;
+    std::cout << "ALL 7 REGRESSION TESTS PASSED!          " << std::endl;
     std::cout << "========================================" << std::endl;
 
     return 0;

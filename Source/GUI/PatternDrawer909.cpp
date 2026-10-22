@@ -38,7 +38,7 @@ namespace Replicant909
         setupSlider(flamProbSlider, 0.20f);
 
         // 3. Generator Action Buttons
-        generateButton.setButtonText("🎲 GENERATE");
+        generateButton.setButtonText("GENERATE");
         generateButton.onClick = [this]() {
             int genreIdx = genreSelector.getSelectedId() - 1;
             generateAlgorithmicPattern(genreIdx);
@@ -46,14 +46,14 @@ namespace Replicant909
         };
         addAndMakeVisible(generateButton);
 
-        mutateButton.setButtonText("🧬 MUTATE");
+        mutateButton.setButtonText("MUTATE");
         mutateButton.onClick = [this]() {
             mutatePattern(0.20f);
             repaint();
         };
         addAndMakeVisible(mutateButton);
 
-        clearButton.setButtonText("↺ CLEAR ALL");
+        clearButton.setButtonText("CLEAR ALL");
         clearButton.onClick = [this]() {
             sequencer.getActivePattern().clear();
             repaint();
@@ -102,13 +102,13 @@ namespace Replicant909
         };
         addAndMakeVisible(shiftRightBtn);
 
-        exportMidiBtn.setButtonText("💾 EXPORT MIDI");
+        exportMidiBtn.setButtonText("EXPORT MIDI");
         exportMidiBtn.onClick = [this]() {
             exportActivePatternToMidi();
         };
         addAndMakeVisible(exportMidiBtn);
 
-        closeDrawerBtn.setButtonText("✕ CLOSE DRAWER");
+        closeDrawerBtn.setButtonText("CLOSE DRAWER");
         closeDrawerBtn.onClick = [this]() {
             if (onCloseRequested)
                 onCloseRequested();

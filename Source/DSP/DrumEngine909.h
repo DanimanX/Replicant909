@@ -99,7 +99,7 @@ namespace Replicant909
     private:
         double sampleRate = 44100.0;
         float masterVolume = 0.85f;
-        bool jackCutMode = true; // In TR-909, plugging individual jack cuts signal from Master
+        bool jackCutMode = false; // Default OFF so Master bus always outputs full mix in DAWs
 
         std::array<std::unique_ptr<VoiceBase>, NUM_VOICES> voices;
         std::array<bool, NUM_VOICES> muted {};

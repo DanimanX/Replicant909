@@ -215,7 +215,7 @@ namespace Replicant909
         addAndMakeVisible(patternSelector);
 
         // 11. Pattern Drawer Toggle Button
-        patternDrawerButton.setButtonText("☵ PATTERN DRAWER");
+        patternDrawerButton.setButtonText("PATTERN DRAWER");
         patternDrawerButton.onClick = [this]() {
             if (onToggleDrawer)
                 onToggleDrawer();
@@ -232,7 +232,7 @@ namespace Replicant909
     void PanelHeaderComponent::setDrawerState(bool isOpen)
     {
         isDrawerOpen = isOpen;
-        patternDrawerButton.setButtonText(isOpen ? "✕ CLOSE DRAWER" : "☵ PATTERN DRAWER");
+        patternDrawerButton.setButtonText(isOpen ? "CLOSE DRAWER" : "PATTERN DRAWER");
         repaint();
     }
 
