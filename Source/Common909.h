@@ -63,7 +63,7 @@ namespace Replicant909
 
     // Standard TR-909 MIDI Note Mapping (with multi-octave tolerance & chromatic mapping)
     // Primary TR-909 / General MIDI range:
-    // BD: 35 & 36
+    // BD: 35 & 36 (and all octaves of C: 12, 24, 36, 48, 60, 72, 84, 96, 108)
     // SD: 38 & 40
     // RS: 37
     // CP: 39
@@ -71,91 +71,76 @@ namespace Replicant909
     // OH: 46
     // LT: 41 & 43
     // MT: 45 & 47
-    // HT: 48 & 50
+    // HT: 50
     // CC: 49
     // RC: 51
     inline int midiNoteToInstrument(int noteNumber) noexcept
     {
-        // 1. Exact GM / TR-909 standard notes (35..51)
+        if (noteNumber < 0 || noteNumber > 127)
+            return -1;
+
+        // 1. Any octave of C (note % 12 == 0) ALWAYS triggers Bass Drum!
+        // This guarantees DAWs (FL Studio, Ableton, Reaper, Cubase, Logic) sending notes
+        // on C1, C2, C3, C4, C5 (notes 24, 36, 48, 60, 72, 84) trigger the Kick drum.
+        if (noteNumber % 12 == 0)
+            return BD;
+
+        // 2. Standard GM Acoustic Bass Drum (note 35) and lower octaves of B
+        if (noteNumber == 35 || noteNumber == 23 || noteNumber == 11)
+            return BD;
+
+        // 3. Exact GM / TR-909 base notes (35..51)
         switch (noteNumber)
         {
-            case 35: case 36: return BD;
-            case 38: case 40: return SD;
             case 37:          return RS;
+            case 38: case 40: return SD;
             case 39:          return CP;
-            case 42: case 44: return CH;
-            case 46:          return OH;
             case 41: case 43: return LT;
+            case 42: case 44: return CH;
             case 45: case 47: return MT;
-            case 48: case 50: return HT;
+            case 46:          return OH;
             case 49:          return CC;
+            case 50:          return HT;
             case 51:          return RC;
         }
 
-        // 2. Transposed by 1 octave (+12 or -12 semitones)
-        switch (noteNumber - 12)
+        // 4. Chromatic keyboard audition around Middle C (60..70)
+        // 60: BD (handled above), 61: SD, 62: LT, 63: MT, 64: HT, 65: RS, 66: CP, 67: CH, 68: OH, 69: CC, 70: RC
+        if (noteNumber >= 61 && noteNumber <= 70)
         {
-            case 35: case 36: return BD;
-            case 38: case 40: return SD;
-            case 37:          return RS;
-            case 39:          return CP;
-            case 42: case 44: return CH;
-            case 46:          return OH;
-            case 41: case 43: return LT;
-            case 45: case 47: return MT;
-            case 48: case 50: return HT;
-            case 49:          return CC;
-            case 51:          return RC;
-        }
-        switch (noteNumber + 12)
-        {
-            case 35: case 36: return BD;
-            case 38: case 40: return SD;
-            case 37:          return RS;
-            case 39:          return CP;
-            case 42: case 44: return CH;
-            case 46:          return OH;
-            case 41: case 43: return LT;
-            case 45: case 47: return MT;
-            case 48: case 50: return HT;
-            case 49:          return CC;
-            case 51:          return RC;
+            static constexpr int chromaticMap[10] = {
+                SD, // 61: C#
+                LT, // 62: D
+                MT, // 63: D#
+                HT, // 64: E
+                RS, // 65: F
+                CP, // 66: F#
+                CH, // 67: G
+                OH, // 68: G#
+                CC, // 69: A
+                RC  // 70: A#
+            };
+            return chromaticMap[noteNumber - 61];
         }
 
-        // 3. Transposed by 2 octaves (+24 or -24 semitones) for DAWs with C3/C4 base
-        switch (noteNumber - 24)
+        // 5. Transposed GM octaves (+12, -12, +24, -24, +36) for transposed pads / keyboards
+        for (int shift : { -24, -12, 12, 24, 36 })
         {
-            case 35: case 36: return BD;
-            case 38: case 40: return SD;
-            case 37:          return RS;
-            case 39:          return CP;
-            case 42: case 44: return CH;
-            case 46:          return OH;
-            case 41: case 43: return LT;
-            case 45: case 47: return MT;
-            case 48: case 50: return HT;
-            case 49:          return CC;
-            case 51:          return RC;
+            int shifted = noteNumber - shift;
+            switch (shifted)
+            {
+                case 37:          return RS;
+                case 38: case 40: return SD;
+                case 39:          return CP;
+                case 41: case 43: return LT;
+                case 42: case 44: return CH;
+                case 45: case 47: return MT;
+                case 46:          return OH;
+                case 49:          return CC;
+                case 50:          return HT;
+                case 51:          return RC;
+            }
         }
-        switch (noteNumber + 24)
-        {
-            case 35: case 36: return BD;
-            case 38: case 40: return SD;
-            case 37:          return RS;
-            case 39:          return CP;
-            case 42: case 44: return CH;
-            case 46:          return OH;
-            case 41: case 43: return LT;
-            case 45: case 47: return MT;
-            case 48: case 50: return HT;
-            case 49:          return CC;
-            case 51:          return RC;
-        }
-
-        // 4. Chromatic keyboard audition (Middle C: 60..70)
-        // 60: BD, 61: SD, 62: LT, 63: MT, 64: HT, 65: RS, 66: CP, 67: CH, 68: OH, 69: CC, 70: RC
-        if (noteNumber >= 60 && noteNumber <= 70)
-            return noteNumber - 60;
 
         return -1;
     }
@@ -168,7 +153,7 @@ namespace Replicant909
             case SD: return 38;
             case LT: return 41;
             case MT: return 45;
-            case HT: return 48;
+            case HT: return 50;
             case RS: return 37;
             case CP: return 39;
             case CH: return 42;

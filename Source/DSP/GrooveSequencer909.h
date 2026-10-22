@@ -59,7 +59,8 @@ namespace Replicant909
     private:
         double sampleRate = 44100.0;
         double bpm = 128.0;
-        bool syncToHost = false;
+        bool syncToHost = true;
+        int lastHostStep = -1;
 
         std::atomic<bool> playing { false };
         std::atomic<int> currentStep { 0 };

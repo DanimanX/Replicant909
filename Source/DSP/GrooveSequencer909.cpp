@@ -69,6 +69,7 @@ namespace Replicant909
     void GrooveSequencer909::reset()
     {
         currentStep.store(0, std::memory_order_relaxed);
+        lastHostStep = -1;
         tickAccumulator = 0.0;
         stepSubTick = 0;
         for (auto& f : pendingFlams)
@@ -183,15 +184,18 @@ namespace Replicant909
         {
             if (auto pos = playHead->getPosition())
             {
+                if (auto hostBpm = pos->getBpm())
+                {
+                    if (*hostBpm > 1.0 && std::abs(*hostBpm - bpm) > 0.01)
+                        setBpm(*hostBpm);
+                }
+
                 if (pos->getIsPlaying())
                 {
                     if (!playing.load(std::memory_order_relaxed))
-                        start();
-
-                    if (auto hostBpm = pos->getBpm())
                     {
-                        if (std::abs(*hostBpm - bpm) > 0.01)
-                            setBpm(*hostBpm);
+                        start();
+                        lastHostStep = -1;
                     }
 
                     if (auto ppq = pos->getPpqPosition())
@@ -199,8 +203,22 @@ namespace Replicant909
                         // In 4/4 time, 1 beat = 1 quarter note = 4 16th notes
                         double total16ths = (*ppq) * 4.0;
                         int hostStep = static_cast<int>(std::floor(total16ths)) % getActivePattern().length;
-                        if (hostStep != currentStep.load(std::memory_order_relaxed))
+                        if (hostStep < 0) hostStep = 0;
+                        if (hostStep != lastHostStep)
                         {
+                            lastHostStep = hostStep;
+                            currentStep.store(hostStep, std::memory_order_relaxed);
+                            advanceStep(onTrigger);
+                        }
+                    }
+                    else if (auto timeInSec = pos->getTimeInSeconds())
+                    {
+                        double total16ths = (*timeInSec) * (bpm / 60.0) * 4.0;
+                        int hostStep = static_cast<int>(std::floor(total16ths)) % getActivePattern().length;
+                        if (hostStep < 0) hostStep = 0;
+                        if (hostStep != lastHostStep)
+                        {
+                            lastHostStep = hostStep;
                             currentStep.store(hostStep, std::memory_order_relaxed);
                             advanceStep(onTrigger);
                         }
@@ -209,7 +227,10 @@ namespace Replicant909
                 else
                 {
                     if (playing.load(std::memory_order_relaxed))
+                    {
                         stop();
+                        lastHostStep = -1;
+                    }
                 }
             }
         }
@@ -229,7 +250,11 @@ namespace Replicant909
             }
         }
 
-        if (!playing.load(std::memory_order_relaxed) || syncToHost)
+        if (!playing.load(std::memory_order_relaxed))
+            return;
+
+        // If syncToHost is enabled and host playhead is active, host transport drove steps above
+        if (syncToHost && playHead != nullptr)
             return;
 
         // 3. Internal Clock Step Scheduling with authentic TR-909 Shuffle

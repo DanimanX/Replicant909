@@ -67,6 +67,10 @@ namespace Replicant909
         // Reused individual bus pointer vector
         std::vector<juce::AudioBuffer<float>*> individualBusPtrs;
 
+        double lastHostBpm = 0.0;
+        bool hasSyncedInitialHostTempo = false;
+
+        void syncHostPlayHead() noexcept;
         void syncParametersToEngine();
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PluginProcessor)

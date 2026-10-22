@@ -177,39 +177,107 @@ int main()
         std::cout << "PASSED" << std::endl;
     }
 
-    // Test 7: PluginProcessor DAW MIDI Input & Master Audio Generation
+    // Test 7: PluginProcessor DAW MIDI Input & Bass Drum Activation
     {
-        std::cout << "[TEST 7] PluginProcessor DAW MIDI Input & Master Output... ";
+        std::cout << "[TEST 7] PluginProcessor DAW MIDI Input & Bass Drum Activation... ";
         PluginProcessor processor;
         processor.prepareToPlay(44100.0, 512);
 
-        // Simulate DAW buffer with all 11 output buses (22 channels)
-        juce::AudioBuffer<float> dawBuffer(22, 512);
-        dawBuffer.clear();
-
-        // Send MIDI Note On 36 (Bass Drum) and Note On 38 (Snare Drum)
-        juce::MidiBuffer midiMessages;
-        midiMessages.addEvent(juce::MidiMessage::noteOn(1, 36, (juce::uint8)120), 0);
-        midiMessages.addEvent(juce::MidiMessage::noteOn(1, 38, (juce::uint8)110), 10);
-        midiMessages.addEvent(juce::MidiMessage::noteOn(10, 60, (juce::uint8)100), 20); // Middle C on ch 10
-
-        processor.processBlock(dawBuffer, midiMessages);
-
-        // Check Master Bus (channels 0 & 1)
-        float masterL = dawBuffer.getRMSLevel(0, 0, 512);
-        float masterR = dawBuffer.getRMSLevel(1, 0, 512);
-
-        if (masterL < 0.01f && masterR < 0.01f)
+        // Verify BD activates on all standard C octaves (36, 48, 60, 72) and GM 35
+        for (int note : { 35, 36, 48, 60, 72 })
         {
-            std::cerr << "FAILED: Master output is silent upon MIDI note input! (L=" << masterL << ", R=" << masterR << ")" << std::endl;
+            processor.getEngine().reset();
+            juce::AudioBuffer<float> block(22, 512);
+            block.clear();
+
+            juce::MidiBuffer midi;
+            midi.addEvent(juce::MidiMessage::noteOn(1, note, (juce::uint8)115), 0);
+            processor.processBlock(block, midi);
+
+            auto* bdVoice = processor.getEngine().getVoice(BD);
+            if (!bdVoice->isActive() && bdVoice->getPeak() < 0.05f)
+            {
+                std::cerr << "FAILED: Bass Drum did NOT activate for MIDI Note " << note << "!" << std::endl;
+                return 1;
+            }
+
+            float rms = block.getRMSLevel(0, 0, 512);
+            if (rms < 0.005f)
+            {
+                std::cerr << "FAILED: Audio output too low (" << rms << ") for MIDI Note " << note << std::endl;
+                return 1;
+            }
+        }
+
+        std::cout << "PASSED (BD triggered successfully on Notes 35, 36, 48, 60, 72)" << std::endl;
+    }
+
+    // Test 8: Host DAW Tempo Synchronization
+    {
+        std::cout << "[TEST 8] Host DAW Tempo Synchronization... ";
+
+        struct MockPlayHead final : public juce::AudioPlayHead
+        {
+            double bpm = 144.0;
+            bool playing = false;
+            double ppq = 0.0;
+
+            juce::Optional<PositionInfo> getPosition() const override
+            {
+                PositionInfo info;
+                info.setBpm(bpm);
+                info.setIsPlaying(playing);
+                info.setPpqPosition(ppq);
+                return info;
+            }
+        };
+
+        PluginProcessor processor;
+        MockPlayHead playHead;
+        playHead.bpm = 144.0;
+        playHead.playing = false;
+
+        processor.setPlayHead(&playHead);
+        processor.prepareToPlay(44100.0, 512);
+
+        // 1. Verify plugin adopted host tempo on initialization/prepareToPlay
+        if (std::abs(processor.getSequencer().getBpm() - 144.0) > 0.1)
+        {
+            std::cerr << "FAILED: Initial host tempo 144.0 not adopted (got " << processor.getSequencer().getBpm() << ")" << std::endl;
             return 1;
         }
 
-        std::cout << "PASSED (Master L RMS: " << masterL << ", R RMS: " << masterR << ")" << std::endl;
+        // 2. Change host tempo to 98.0 while running processBlock
+        playHead.bpm = 98.0;
+        playHead.playing = true;
+        playHead.ppq = 4.0;
+
+        juce::AudioBuffer<float> block(22, 512);
+        block.clear();
+        juce::MidiBuffer midi;
+        processor.processBlock(block, midi);
+
+        if (std::abs(processor.getSequencer().getBpm() - 98.0) > 0.1)
+        {
+            std::cerr << "FAILED: Host tempo change to 98.0 not followed (got " << processor.getSequencer().getBpm() << ")" << std::endl;
+            return 1;
+        }
+
+        if (auto* rawTempo = processor.getAPVTS().getRawParameterValue("TEMPO"))
+        {
+            if (std::abs(rawTempo->load() - 98.0f) > 0.5f)
+            {
+                std::cerr << "FAILED: APVTS TEMPO parameter did not update to host tempo (got " << rawTempo->load() << ")" << std::endl;
+                return 1;
+            }
+        }
+
+        processor.setPlayHead(nullptr);
+        std::cout << "PASSED (Synchronized to 144 BPM and 98 BPM successfully)" << std::endl;
     }
 
     std::cout << "========================================" << std::endl;
-    std::cout << "ALL 7 REGRESSION TESTS PASSED!          " << std::endl;
+    std::cout << "ALL 8 REGRESSION TESTS PASSED!          " << std::endl;
     std::cout << "========================================" << std::endl;
 
     return 0;

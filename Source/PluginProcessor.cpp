@@ -51,6 +51,7 @@ namespace Replicant909
     {
         engine.prepare(sampleRate, samplesPerBlock);
         sequencer.prepare(sampleRate);
+        syncHostPlayHead();
         syncParametersToEngine();
     }
 
@@ -60,11 +61,61 @@ namespace Replicant909
         sequencer.reset();
     }
 
+    void PluginProcessor::syncHostPlayHead() noexcept
+    {
+        double hostBpm = 0.0;
+
+        if (auto* hostPlayHead = getPlayHead())
+        {
+            if (auto position = hostPlayHead->getPosition())
+            {
+                if (auto bpm = position->getBpm())
+                {
+                    if (*bpm > 1.0)
+                        hostBpm = *bpm;
+                }
+            }
+        }
+
+        const bool syncHost = sequencer.isSyncToHost();
+
+        if (hostBpm > 1.0)
+        {
+            const bool hostBpmChanged = !hasSyncedInitialHostTempo
+                                        || std::abs(hostBpm - lastHostBpm) > 0.01;
+            hasSyncedInitialHostTempo = true;
+            lastHostBpm = hostBpm;
+
+            if (syncHost || hostBpmChanged)
+            {
+                const float clampedHostBpm = juce::jlimit(30.0f, 300.0f, static_cast<float>(hostBpm));
+                sequencer.setBpm(clampedHostBpm);
+
+                if (auto* tempoParam = apvts.getParameter("TEMPO"))
+                {
+                    if (auto* rawVal = apvts.getRawParameterValue("TEMPO"))
+                    {
+                        if (std::abs(*rawVal - clampedHostBpm) > 0.05f)
+                        {
+                            tempoParam->setValueNotifyingHost(tempoParam->convertTo0to1(clampedHostBpm));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     void PluginProcessor::syncParametersToEngine()
     {
         // Global parameters
-        if (auto* p = apvts.getRawParameterValue("TEMPO"))
-            sequencer.setBpm(static_cast<double>(*p));
+        if (auto* p = apvts.getRawParameterValue("SYNC_HOST"))
+            sequencer.setSyncToHost(*p > 0.5f);
+
+        if (!sequencer.isSyncToHost())
+        {
+            if (auto* p = apvts.getRawParameterValue("TEMPO"))
+                sequencer.setBpm(static_cast<double>(*p));
+        }
 
         if (auto* p = apvts.getRawParameterValue("TOTAL_ACCENT"))
             engine.getAccentCircuit().setAccentLevel(*p);
@@ -77,9 +128,6 @@ namespace Replicant909
 
         if (auto* p = apvts.getRawParameterValue("FLAM"))
             sequencer.setFlamInterval(static_cast<int>(*p));
-
-        if (auto* p = apvts.getRawParameterValue("SYNC_HOST"))
-            sequencer.setSyncToHost(*p > 0.5f);
 
         if (auto* p = apvts.getRawParameterValue("JACK_CUT"))
             engine.setJackCutMode(*p > 0.5f);
@@ -136,6 +184,7 @@ namespace Replicant909
     {
         juce::ScopedNoDenormals noDenormals;
 
+        syncHostPlayHead();
         syncParametersToEngine();
 
         // 1. Process MIDI Note triggers
@@ -193,15 +242,18 @@ namespace Replicant909
             currentProgram = index;
             const auto& p = presetBank.getPreset(index);
             sequencer.getActivePattern() = p.pattern;
-            sequencer.setBpm(p.bpm);
+            if (!sequencer.isSyncToHost())
+            {
+                sequencer.setBpm(p.bpm);
+                if (auto* param = apvts.getParameter("TEMPO"))
+                    param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(p.bpm)));
+            }
             sequencer.setShuffle(p.shuffle);
             sequencer.setFlamInterval(p.flamInterval);
             engine.getAccentCircuit().setAccentLevel(p.totalAccent);
             engine.setMasterVolume(p.masterVolume);
 
             // Update APVTS parameters
-            if (auto* param = apvts.getParameter("TEMPO"))
-                param->setValueNotifyingHost(param->convertTo0to1(static_cast<float>(p.bpm)));
             if (auto* param = apvts.getParameter("TOTAL_ACCENT"))
                 param->setValueNotifyingHost(p.totalAccent);
             if (auto* param = apvts.getParameter("MASTER_VOL"))
@@ -256,7 +308,8 @@ namespace Replicant909
                 if (PresetIO909::fromXml(*patXml, currentPatch))
                 {
                     sequencer.getActivePattern() = currentPatch.pattern;
-                    sequencer.setBpm(currentPatch.bpm);
+                    if (!sequencer.isSyncToHost())
+                        sequencer.setBpm(currentPatch.bpm);
                     sequencer.setShuffle(currentPatch.shuffle);
                     sequencer.setFlamInterval(currentPatch.flamInterval);
                     engine.getAccentCircuit().setAccentLevel(currentPatch.totalAccent);
@@ -266,6 +319,8 @@ namespace Replicant909
 
             if (xmlState->hasTagName(apvts.state.getType()))
                 apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
+
+            syncHostPlayHead();
         }
     }
 
@@ -294,7 +349,7 @@ namespace Replicant909
             juce::ParameterID{ "FLAM", 1 }, "Flam Interval", 1, 8, 3));
 
         params.push_back(std::make_unique<juce::AudioParameterBool>(
-            juce::ParameterID{ "SYNC_HOST", 1 }, "Sync to Host", false));
+            juce::ParameterID{ "SYNC_HOST", 1 }, "Sync to Host", true));
 
         params.push_back(std::make_unique<juce::AudioParameterBool>(
             juce::ParameterID{ "JACK_CUT", 1 }, "Individual Jack Auto-Cut", false));
