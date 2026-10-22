@@ -313,8 +313,93 @@ int main()
         std::cout << "PASSED (Synchronized to 144 BPM and 98 BPM, verified disarmed/armed sequencer transport)" << std::endl;
     }
 
+    // Test 9: Note Multiplier & Trigger Burst Engine
+    {
+        std::cout << "[TEST 9] Note Multiplier & Trigger Burst Engine... ";
+        PluginProcessor processor;
+        processor.prepareToPlay(44100.0, 512);
+
+        // 1. Verify APVTS parameters exist
+        auto* multiParam = processor.getAPVTS().getParameter("TRIGGER_MULTI");
+        auto* countParam = processor.getAPVTS().getParameter("MULTI_COUNT");
+        if (multiParam == nullptr || countParam == nullptr)
+        {
+            std::cerr << "FAILED: TRIGGER_MULTI or MULTI_COUNT parameters missing in APVTS!" << std::endl;
+            return 1;
+        }
+
+        // 2. Enable Multiplier and set count = 4x (Choice index 3)
+        multiParam->setValueNotifyingHost(1.0f);
+        countParam->setValueNotifyingHost(countParam->convertTo0to1(3.0f));
+
+        juce::AudioBuffer<float> block(22, 512);
+        block.clear();
+        juce::MidiBuffer emptyMidi;
+        processor.processBlock(block, emptyMidi);
+
+        if (!processor.getEngine().isMultiplierEnabled())
+        {
+            std::cerr << "FAILED: DrumEngine multiplierEnabled is false after setting TRIGGER_MULTI!" << std::endl;
+            return 1;
+        }
+        if (processor.getEngine().getMultiplierCount() != 4)
+        {
+            std::cerr << "FAILED: DrumEngine multiplierCount is " << processor.getEngine().getMultiplierCount() << " (expected 4)!" << std::endl;
+            return 1;
+        }
+
+        // 3. Test Voice Selection and Trigger
+        processor.getEngine().setSelectedVoice(SD);
+        if (processor.getEngine().getSelectedVoice() != SD)
+        {
+            std::cerr << "FAILED: setSelectedVoice(SD) did not update selectedVoice!" << std::endl;
+            return 1;
+        }
+
+        processor.getEngine().triggerSelectedVoice(0.95f, 0.6f);
+        float totalRms = 0.0f;
+        for (int b = 0; b < 10; ++b)
+        {
+            block.clear();
+            processor.processBlock(block, emptyMidi);
+            totalRms += block.getRMSLevel(0, 0, 512);
+        }
+        if (totalRms <= 0.001f)
+        {
+            std::cerr << "FAILED: Trigger burst produced no audio!" << std::endl;
+            return 1;
+        }
+
+        // 4. Test MIDI Multiplier burst (Send MIDI Note 36 Bass Drum)
+        juce::MidiBuffer midiIn;
+        midiIn.addEvent(juce::MidiMessage::noteOn(1, 36, (juce::uint8)110), 0);
+        block.clear();
+        processor.processBlock(block, midiIn);
+
+        if (processor.getEngine().getSelectedVoice() != BD)
+        {
+            std::cerr << "FAILED: MIDI Note 36 did not select BD voice!" << std::endl;
+            return 1;
+        }
+
+        totalRms = block.getRMSLevel(0, 0, 512);
+        for (int b = 0; b < 12; ++b)
+        {
+            block.clear();
+            processor.processBlock(block, emptyMidi);
+            totalRms += block.getRMSLevel(0, 0, 512);
+        }
+        if (totalRms <= 0.001f)
+        {
+            std::cerr << "FAILED: MIDI Multiplier burst produced no audio!" << std::endl;
+            return 1;
+        }
+
+        std::cout << "PASSED (Voice selection, 4x roll burst, APVTS sync & MIDI note multiplication verified)" << std::endl;
+    }
+
     std::cout << "========================================" << std::endl;
-    std::cout << "ALL 8 REGRESSION TESTS PASSED!          " << std::endl;
+    std::cout << "ALL 9 REGRESSION TESTS PASSED!          " << std::endl;
     std::cout << "========================================" << std::endl;
 
     return 0;

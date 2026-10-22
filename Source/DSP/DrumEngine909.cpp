@@ -55,6 +55,8 @@ namespace Replicant909
             if (v != nullptr)
                 v->reset();
         }
+        for (auto& q : queuedTriggers)
+            q.active = false;
     }
 
     VoiceBase* DrumEngine909::getVoice(int index) noexcept
@@ -94,6 +96,69 @@ namespace Replicant909
             voices[voiceIndex]->trigger(velocity, accentVal);
     }
 
+    void DrumEngine909::triggerVoiceMultiplied(int voiceIndex, float velocity, float stepAccent, int count)
+    {
+        if (voiceIndex < 0 || voiceIndex >= NUM_VOICES)
+            return;
+
+        int mult = (count > 0) ? count : multiplierCount;
+        if (mult <= 1)
+        {
+            triggerVoice(voiceIndex, velocity, stepAccent);
+            return;
+        }
+
+        // Cancel previous pending triggers for this specific voice
+        for (auto& q : queuedTriggers)
+        {
+            if (q.active && q.voiceIndex == voiceIndex)
+                q.active = false;
+        }
+
+        // Trigger hit 0 immediately
+        triggerVoice(voiceIndex, velocity, stepAccent);
+
+        // Subdivision timing: 1 step (16th note) divided by multiplier
+        double bpm = (currentBpm >= 30.0) ? currentBpm : 128.0;
+        double stepSeconds = 15.0 / bpm;
+        double stepSamples = stepSeconds * sampleRate;
+        double intervalSamples = stepSamples / static_cast<double>(mult);
+
+        if (intervalSamples < 64.0)
+            intervalSamples = 64.0;
+
+        for (int k = 1; k < mult; ++k)
+        {
+            int delay = static_cast<int>(std::round(k * intervalSamples));
+            float subVel = juce::jlimit(0.20f, 1.0f, velocity * std::pow(0.93f, static_cast<float>(k)));
+            float subAcc = (stepAccent > 0.0f) ? (stepAccent * std::pow(0.90f, static_cast<float>(k))) : 0.0f;
+
+            for (auto& q : queuedTriggers)
+            {
+                if (!q.active)
+                {
+                    q.voiceIndex = voiceIndex;
+                    q.velocity = subVel;
+                    q.stepAccent = subAcc;
+                    q.samplesUntilTrigger = delay;
+                    q.active = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    void DrumEngine909::triggerSelectedVoice(float velocity, float stepAccent)
+    {
+        if (selectedVoice < 0 || selectedVoice >= NUM_VOICES)
+            selectedVoice = BD;
+
+        if (multiplierEnabled && multiplierCount > 1)
+            triggerVoiceMultiplied(selectedVoice, velocity, stepAccent, multiplierCount);
+        else
+            triggerVoice(selectedVoice, velocity, stepAccent);
+    }
+
     void DrumEngine909::processMidi(const juce::MidiBuffer& midiMessages)
     {
         for (const auto metadata : midiMessages)
@@ -104,8 +169,13 @@ namespace Replicant909
                 int inst = midiNoteToInstrument(msg.getNoteNumber());
                 if (inst >= 0 && inst < NUM_VOICES)
                 {
+                    selectedVoice = inst;
                     float vel = static_cast<float>(msg.getVelocity()) / 127.0f;
-                    triggerVoice(inst, vel, (vel > 0.75f ? 1.0f : 0.0f));
+                    float stepAcc = (vel > 0.75f ? 1.0f : 0.0f);
+                    if (multiplierEnabled && multiplierCount > 1)
+                        triggerVoiceMultiplied(inst, vel, stepAcc, multiplierCount);
+                    else
+                        triggerVoice(inst, vel, stepAcc);
                 }
             }
         }
@@ -167,12 +237,75 @@ namespace Replicant909
             // Decay recent peak level for UI LED meter
             voice->decayPeak();
 
-            if (!voice->isActive())
+            // Collect triggers for voice v that occur in this audio block
+            struct TriggerEvent {
+                int sampleOffset;
+                float velocity;
+                float stepAccent;
+            };
+            std::array<TriggerEvent, 16> blockEvents;
+            int numEvents = 0;
+
+            for (auto& q : queuedTriggers)
+            {
+                if (q.active && q.voiceIndex == v && q.samplesUntilTrigger < numSamples)
+                {
+                    if (numEvents < static_cast<int>(blockEvents.size()))
+                    {
+                        blockEvents[numEvents++] = {
+                            std::max(0, q.samplesUntilTrigger),
+                            q.velocity,
+                            q.stepAccent
+                        };
+                    }
+                    q.active = false;
+                }
+            }
+
+            if (numEvents > 1)
+            {
+                std::sort(blockEvents.begin(), blockEvents.begin() + numEvents,
+                          [](const TriggerEvent& a, const TriggerEvent& b) {
+                              return a.sampleOffset < b.sampleOffset;
+                          });
+            }
+
+            if (numEvents == 0 && !voice->isActive())
                 continue;
 
             // Render voice mono audio into scratch buffer
-            for (int s = 0; s < numSamples; ++s)
-                scratchPtr[s] = voice->renderSample();
+            if (numEvents == 0)
+            {
+                for (int s = 0; s < numSamples; ++s)
+                    scratchPtr[s] = voice->renderSample();
+            }
+            else
+            {
+                int curSample = 0;
+                for (int e = 0; e < numEvents; ++e)
+                {
+                    int eventOffset = blockEvents[e].sampleOffset;
+                    if (eventOffset > curSample)
+                    {
+                        if (voice->isActive())
+                        {
+                            for (int s = curSample; s < eventOffset; ++s)
+                                scratchPtr[s] = voice->renderSample();
+                        }
+                        else
+                        {
+                            for (int s = curSample; s < eventOffset; ++s)
+                                scratchPtr[s] = 0.0f;
+                        }
+                        curSample = eventOffset;
+                    }
+
+                    triggerVoice(v, blockEvents[e].velocity, blockEvents[e].stepAccent);
+                }
+
+                for (int s = curSample; s < numSamples; ++s)
+                    scratchPtr[s] = voice->renderSample();
+            }
 
             int busIdx = voiceToBusIndex[v]; // 1..10
             bool busActive = (activeBusesMask & (1u << busIdx)) != 0;
@@ -209,6 +342,13 @@ namespace Replicant909
                     masterBuffer.addFrom(0, 0, voiceScratchBuffer, 0, 0, numSamples, 0.707f);
                 }
             }
+        }
+
+        // Advance remaining queued triggers past this block
+        for (auto& q : queuedTriggers)
+        {
+            if (q.active)
+                q.samplesUntilTrigger -= numSamples;
         }
 
         // Apply Master Volume to Master output bus

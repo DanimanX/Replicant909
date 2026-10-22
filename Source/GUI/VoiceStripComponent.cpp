@@ -114,10 +114,22 @@ namespace Replicant909
         // 6. Manual Audition Trigger Button
         triggerButton.setButtonText(VOICE_SHORT_NAMES[voiceIndex]);
         triggerButton.onClick = [this]() {
-            engine.triggerVoice(voiceIndex, 0.95f, 0.5f);
-            repaint();
+            engine.setSelectedVoice(voiceIndex);
+            if (engine.isMultiplierEnabled() && engine.getMultiplierCount() > 1)
+                engine.triggerVoiceMultiplied(voiceIndex, 0.95f, 0.5f, engine.getMultiplierCount());
+            else
+                engine.triggerVoice(voiceIndex, 0.95f, 0.5f);
+            if (auto* top = getTopLevelComponent())
+                top->repaint();
         };
         addAndMakeVisible(triggerButton);
+    }
+
+    void SingleVoiceStrip::mouseDown(const juce::MouseEvent&)
+    {
+        engine.setSelectedVoice(voiceIndex);
+        if (auto* top = getTopLevelComponent())
+            top->repaint();
     }
 
     void SingleVoiceStrip::paint(juce::Graphics& g)
@@ -133,6 +145,14 @@ namespace Replicant909
         auto headerRect = juce::Rectangle<float>(0, 0, bounds.getWidth() - 1, 22);
         g.setColour((voiceIndex % 2 == 0) ? theme.accentPrimary : theme.accentSecondary);
         g.fillRect(headerRect.removeFromTop(3.0f));
+
+        if (engine.getSelectedVoice() == voiceIndex)
+        {
+            g.setColour(theme.accentPrimary.withAlpha(0.25f));
+            g.fillRect(headerRect);
+            g.setColour(theme.accentPrimary);
+            g.drawRect(headerRect, 1.0f);
+        }
 
         g.setColour(theme.silkscreenText);
         g.setFont(juce::FontOptions(11.0f, juce::Font::bold));

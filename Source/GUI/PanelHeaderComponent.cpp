@@ -215,7 +215,34 @@ namespace Replicant909
         };
         addAndMakeVisible(patternSelector);
 
-        // 11. Pattern Drawer Toggle Button
+        // 11. Note Multiplier & Trigger Burst
+        multiToggle.setButtonText("MULTI");
+        multiToggle.setTooltip("Enable Note Multiplier / Ratchet Roll for MIDI and manual triggers");
+        addAndMakeVisible(multiToggle);
+        multiAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+            apvts, "TRIGGER_MULTI", multiToggle);
+
+        multiCountSelector.addItem("1x (Off)", 1);
+        multiCountSelector.addItem("2x (Double)", 2);
+        multiCountSelector.addItem("3x (Triplet)", 3);
+        multiCountSelector.addItem("4x (Quad)", 4);
+        multiCountSelector.addItem("6x (Sextuplet)", 5);
+        multiCountSelector.addItem("8x (Octa Roll)", 6);
+        multiCountSelector.addItem("16x (Fast Roll)", 7);
+        multiCountSelector.setTooltip("Select note multiplication rate (subdivision per step)");
+        addAndMakeVisible(multiCountSelector);
+        multiCountAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+            apvts, "MULTI_COUNT", multiCountSelector);
+
+        triggerButton.setButtonText("TRIGGER [" + juce::String(VOICE_SHORT_NAMES[engine.getSelectedVoice()]) + "]");
+        triggerButton.setTooltip("Trigger selected voice with multiplier roll");
+        triggerButton.onClick = [this]() {
+            engine.triggerSelectedVoice(0.95f, 0.6f);
+            repaint();
+        };
+        addAndMakeVisible(triggerButton);
+
+        // 12. Pattern Drawer Toggle Button
         patternDrawerButton.setButtonText("PATTERN DRAWER");
         patternDrawerButton.onClick = [this]() {
             if (onToggleDrawer)
@@ -246,6 +273,14 @@ namespace Replicant909
         juce::String expectedText = isArmed ? "STOP" : "RUN / STOP";
         if (playStopButton.getButtonText() != expectedText)
             playStopButton.setButtonText(expectedText);
+
+        int curVoice = engine.getSelectedVoice();
+        if (curVoice >= 0 && curVoice < NUM_VOICES)
+        {
+            juce::String expectedTrig = "TRIGGER [" + juce::String(VOICE_SHORT_NAMES[curVoice]) + "]";
+            if (triggerButton.getButtonText() != expectedTrig)
+                triggerButton.setButtonText(expectedTrig);
+        }
     }
 
     void PanelHeaderComponent::paint(juce::Graphics& g)
@@ -277,7 +312,8 @@ namespace Replicant909
         g.drawText("TOTAL ACCENT", 380, 6, 75, 12, juce::Justification::centred);
         g.drawText("VOLUME", 460, 6, 50, 12, juce::Justification::centred);
         g.drawText("PATTERN VAULT", 525, 6, 155, 12, juce::Justification::centred);
-        g.drawText("SKIN", 690, 6, 95, 12, juce::Justification::centred);
+        g.drawText("SKIN", 685, 6, 75, 12, juce::Justification::centred);
+        g.drawText("MULTIPLIER", 765, 6, 95, 12, juce::Justification::centred);
 
         // Bottom divider line
         g.setColour(theme.silkscreenLines);
@@ -308,10 +344,15 @@ namespace Replicant909
         playStopButton.setBounds(525, 42, 72, 18);
         jackCutToggle.setBounds(602, 42, 78, 18);
 
-        // Skin Selector
-        skinSelector.setBounds(690, 18, 95, 20);
+        // Skin Selector & Multi Toggle
+        skinSelector.setBounds(685, 18, 75, 20);
+        multiToggle.setBounds(685, 42, 75, 18);
+
+        // Multiplier Count Selector & Trigger Button
+        multiCountSelector.setBounds(765, 18, 95, 20);
+        triggerButton.setBounds(765, 42, 95, 18);
 
         // Pattern Drawer button
-        patternDrawerButton.setBounds(getWidth() - 175, 16, 155, 28);
+        patternDrawerButton.setBounds(getWidth() - 145, 16, 135, 28);
     }
 }

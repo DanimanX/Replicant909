@@ -132,6 +132,18 @@ namespace Replicant909
         if (auto* p = apvts.getRawParameterValue("JACK_CUT"))
             engine.setJackCutMode(*p > 0.5f);
 
+        if (auto* p = apvts.getRawParameterValue("TRIGGER_MULTI"))
+            engine.setMultiplierEnabled(*p > 0.5f);
+
+        if (auto* p = apvts.getRawParameterValue("MULTI_COUNT"))
+        {
+            int choiceIdx = juce::jlimit(0, 6, static_cast<int>(*p));
+            static constexpr int MULTIPLIER_VALUES[7] = { 1, 2, 3, 4, 6, 8, 16 };
+            engine.setMultiplierCount(MULTIPLIER_VALUES[choiceIdx]);
+        }
+
+        engine.setBpm(sequencer.getBpm());
+
         if (auto* p = apvts.getRawParameterValue("SKIN"))
         {
             int skinIdx = static_cast<int>(*p);
@@ -353,6 +365,13 @@ namespace Replicant909
 
         params.push_back(std::make_unique<juce::AudioParameterBool>(
             juce::ParameterID{ "JACK_CUT", 1 }, "Individual Jack Auto-Cut", false));
+
+        params.push_back(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID{ "TRIGGER_MULTI", 1 }, "Note Multiplier", false));
+
+        params.push_back(std::make_unique<juce::AudioParameterChoice>(
+            juce::ParameterID{ "MULTI_COUNT", 1 }, "Multiplier Count",
+            juce::StringArray{ "1x (Off)", "2x (Double)", "3x (Triplet)", "4x (Quad)", "6x (Sextuplet)", "8x (Octa Roll)", "16x (Fast Roll)" }, 1));
 
         params.push_back(std::make_unique<juce::AudioParameterChoice>(
             juce::ParameterID{ "SKIN", 1 }, "Panel Skin",

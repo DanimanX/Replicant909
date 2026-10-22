@@ -18,6 +18,7 @@ namespace Replicant909
 
         void paint(juce::Graphics& g) override;
         void resized() override;
+        void mouseDown(const juce::MouseEvent& e) override;
         void lookAndFeelChanged() override { repaint(); }
 
         int getVoiceIndex() const noexcept { return voiceIndex; }

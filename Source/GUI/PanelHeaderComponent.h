@@ -72,6 +72,11 @@ namespace Replicant909
         juce::ComboBox bankSelector;
         juce::ComboBox patternSelector;
 
+        // Note Multiplier & Trigger Burst controls
+        juce::ToggleButton multiToggle;
+        juce::ComboBox multiCountSelector;
+        juce::TextButton triggerButton;
+
         // Drawer toggle button
         juce::TextButton patternDrawerButton;
         bool isDrawerOpen = false;
@@ -84,6 +89,8 @@ namespace Replicant909
         std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> totalAccentAttachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> syncHostAttachment;
         std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> skinAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> multiAttachment;
+        std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> multiCountAttachment;
 
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PanelHeaderComponent)
     };

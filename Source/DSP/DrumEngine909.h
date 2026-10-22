@@ -96,7 +96,51 @@ namespace Replicant909
             return true;
         }
 
+        // Note Multiplier / Ratchet Roll controls
+        void setMultiplierEnabled(bool enabled) noexcept { multiplierEnabled = enabled; }
+        bool isMultiplierEnabled() const noexcept        { return multiplierEnabled; }
+
+        void setMultiplierCount(int count) noexcept      { multiplierCount = juce::jlimit(1, 16, count); }
+        int getMultiplierCount() const noexcept          { return multiplierCount; }
+
+        void setSelectedVoice(int voiceIndex) noexcept
+        {
+            if (voiceIndex >= 0 && voiceIndex < NUM_VOICES)
+                selectedVoice = voiceIndex;
+        }
+        int getSelectedVoice() const noexcept            { return selectedVoice; }
+
+        void setBpm(double bpm) noexcept
+        {
+            if (bpm >= 30.0 && bpm <= 300.0)
+                currentBpm = bpm;
+        }
+        double getBpm() const noexcept                   { return currentBpm; }
+
+        // Trigger voice with ratchet / roll multiplier
+        void triggerVoiceMultiplied(int voiceIndex, float velocity, float stepAccent = 0.0f, int count = -1);
+
+        // Trigger currently selected voice with multiplier if enabled
+        void triggerSelectedVoice(float velocity = 0.95f, float stepAccent = 0.5f);
+
     private:
+        struct MultiplierHit
+        {
+            int voiceIndex = 0;
+            float velocity = 0.8f;
+            float stepAccent = 0.0f;
+            int samplesUntilTrigger = 0;
+            bool active = false;
+        };
+
+        static constexpr int MAX_QUEUED_TRIGGERS = 128;
+        std::array<MultiplierHit, MAX_QUEUED_TRIGGERS> queuedTriggers {};
+
+        bool multiplierEnabled = false;
+        int multiplierCount = 2; // Default 2x
+        int selectedVoice = BD;  // Default BD
+        double currentBpm = 128.0;
+
         double sampleRate = 44100.0;
         float masterVolume = 0.85f;
         bool jackCutMode = false; // Default OFF so Master bus always outputs full mix in DAWs
