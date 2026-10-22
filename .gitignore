@@ -1,0 +1,23 @@
+# Build directories
+build/
+bin/
+package-staging/
+release-zip/
+release-assets/
+downloaded-artifacts/
+
+# CMake artifacts
+CMakeUserPresets.json
+CMakeFiles/
+CMakeCache.txt
+*.cmake
+Makefile
+
+# IDEs & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+*~
+*.user

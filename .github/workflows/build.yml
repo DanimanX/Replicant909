@@ -1,0 +1,230 @@
+name: Build Replicant909 Multiplatform (macOS, Linux, Windows)
+
+on:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*', '[0-9]+.[0-9]+.[0-9]+*' ]
+  pull_request:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            platform: macos
+            cmake_generator: "Xcode"
+            artifact_name: "Replicant909-macOS-Universal"
+
+          - os: ubuntu-22.04
+            platform: linux
+            cmake_generator: "Unix Makefiles"
+            artifact_name: "Replicant909-Linux-x86_64"
+
+          - os: windows-latest
+            platform: windows
+            cmake_generator: "Ninja"
+            artifact_name: "Replicant909-Windows-x64"
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # ------------------------------------------------------------------------
+      # MSVC Environment Setup (Windows)
+      # ------------------------------------------------------------------------
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      # ------------------------------------------------------------------------
+      # Linux Dependencies
+      # ------------------------------------------------------------------------
+      - name: Install Linux Audio & GUI Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libasound2-dev \
+            libjack-jackd2-dev \
+            ladspa-sdk \
+            libcurl4-openssl-dev \
+            libfreetype6-dev \
+            libx11-dev \
+            libxcomposite-dev \
+            libxcursor-dev \
+            libxext-dev \
+            libxinerama-dev \
+            libxrandr-dev \
+            libxrender-dev \
+            mesa-common-dev \
+            libgl1-mesa-dev \
+            libgtk-3-dev \
+            xvfb
+
+      # ------------------------------------------------------------------------
+      # Configure CMake
+      # ------------------------------------------------------------------------
+      - name: Configure CMake
+        run: |
+          EXTRA_FLAGS=""
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            EXTRA_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
+          fi
+          cmake -B build -G "${{ matrix.cmake_generator }}" -DCMAKE_BUILD_TYPE=Release $EXTRA_FLAGS
+
+      # ------------------------------------------------------------------------
+      # Build Plugin (VST3, CLAP, AU, Standalone)
+      # ------------------------------------------------------------------------
+      - name: Build Targets
+        run: |
+          cmake --build build --config Release --parallel
+
+      # ------------------------------------------------------------------------
+      # Headless Regression Suite (Linux)
+      # ------------------------------------------------------------------------
+      - name: Run Regression Suite
+        if: runner.os == 'Linux'
+        run: |
+          cmake --build build --config Release --target run_tests --parallel
+          xvfb-run -a ./build/run_tests
+
+      # ------------------------------------------------------------------------
+      # Collect & Package Artifacts
+      # ------------------------------------------------------------------------
+      - name: Collect & Package Artifacts
+        run: |
+          mkdir -p package-staging
+
+          # Find and copy VST3 bundle
+          find build -type d -name "Replicant909.vst3" -exec cp -R {} package-staging/ \; || true
+
+          # Find and copy CLAP bundle
+          find build -type d -name "Replicant909.clap" -exec cp -R {} package-staging/ \; || true
+          find build -type f -name "Replicant909.clap" -exec cp {} package-staging/ \; || true
+
+          # Find and copy AU bundle (macOS component)
+          find build -type d -name "Replicant909.component" -exec cp -R {} package-staging/ \; || true
+
+          # Find and copy Standalone App / Executable
+          find build -type d -name "Replicant909.app" -exec cp -R {} package-staging/ \; || true
+          find build -type f -name "Replicant909.exe" -exec cp {} package-staging/ \; || true
+
+          # Linux Standalone binary
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            find build -type f -executable -name "Replicant909" ! -name "*.so" ! -name "*.o" ! -path "*/CMakeFiles/*" -exec cp {} package-staging/ \; || true
+          fi
+
+          # Copy presets folder to package
+          cp -R presets package-staging/ || true
+
+          # Create zip archive
+          mkdir -p release-zip
+          cd package-staging
+          zip -r ../release-zip/${{ matrix.artifact_name }}.zip . || powershell -Command "Compress-Archive -Path * -DestinationPath ../release-zip/${{ matrix.artifact_name }}.zip -Force"
+          cd ..
+
+      # ------------------------------------------------------------------------
+      # Upload Artifact
+      # ------------------------------------------------------------------------
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: release-zip/*.zip
+
+  # ----------------------------------------------------------------------------
+  # Release Job: Creates a GitHub Release with all platform ZIPs
+  # ----------------------------------------------------------------------------
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine Release Version
+        id: versioning
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            RELEASE_TAG="${GITHUB_REF_NAME}"
+          else
+            RELEASE_TAG="v1.0.0"
+          fi
+          echo "tag=${RELEASE_TAG}" >> "${GITHUB_OUTPUT}"
+          echo "RELEASE_TAG=${RELEASE_TAG}" >> "${GITHUB_ENV}"
+
+      - name: Download all Build Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: downloaded-artifacts
+
+      - name: Prepare Release Files
+        run: |
+          mkdir -p release-assets
+          find downloaded-artifacts -type f -name "*.zip" -exec cp {} release-assets/ \;
+          ls -la release-assets
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versioning.outputs.tag }}
+          name: "Replicant909 ${{ steps.versioning.outputs.tag }} - Multiplatform Release"
+          body: |
+            ## 🥁 Replicant909 - Circuit-Accurate Roland TR-909 Rhythm Composer (${{ steps.versioning.outputs.tag }})
+
+            ### 📦 Multiplatform Plug-in & Standalone Downloads
+            * **macOS Universal:** `Replicant909-macOS-Universal.zip` (VST3, CLAP, AU `.component` and Standalone App for Apple Silicon & Intel)
+            * **Linux x86_64:** `Replicant909-Linux-x86_64.zip` (VST3, CLAP, and Standalone for Ubuntu, Debian, Arch, Fedora)
+            * **Windows x64:** `Replicant909-Windows-x64.zip` (VST3, CLAP, and Standalone `.exe` for Windows 10/11)
+
+            ### ⚡ 1:1 Circuit Emulation & Architecture
+            * **Analog Voice Synthesis:**
+              * **Bass Drum:** Triangle VCO + diode waveshaper + dual-rate pitch drop + transient attack click.
+              * **Snare Drum:** Dual bridged-T resonators (180 Hz & 340 Hz) + filtered white noise snappy burst.
+              * **Low, Mid & Hi Toms:** Discrete bridged-T active filter resonators with downward skin tension pitch sweep.
+              * **Rim Shot:** Modal pulse circuit with 3 coupled resonant frequencies (250 Hz, 495 Hz, 1580 Hz).
+              * **Hand Clap:** 3 micro-burst pulses followed by diffuse room reverb tail with variable decay.
+            * **Hybrid 6-Bit PCM ROM Engine:**
+              * **Closed & Open Hi-Hats:** Digitized Paiste Formula 602 cymbals at 6-bit 32kHz with genuine analog BA662 VCA envelopes and hardware choke circuit.
+              * **Crash & Ride Cymbals:** Authentic 6-bit PCM playback with tunable sample clock oscillator (+/- 1 octave) and active analog reconstruction filter.
+            * **Total Accent Circuit:** Global accent bus biasing dynamic trigger transient punch and VCA gains across all voices.
+            * **Groove Sequencer:** 16-step sequencer with 6-stage authentic 909 shuffle (50% to 70.8% swing) and programmable flams (1-8 spacing).
+
+            ### 🎛️ Dual Front-Panel Skins
+            * **Retro-Futuristic Classic:** Vintage Roland ivory cream metal chassis, charcoal cheeks, orange & yellow livery, and ruby red 7-segment tempo LED.
+            * **Modern Obsidian:** Matte carbon chassis with electric neon cyan and amber illumination, knurled dials with halo rings, and OLED digital display.
+
+            ### 🔌 Multi-Bus Individual Audio Outputs
+            * Master Stereo Bus (Out 1-2).
+            * 10 Individual Audio Buses for BD, SD, LT, MT, HT, RS, CP, HI-HAT, CRASH, and RIDE.
+            * Automatic mechanical jack cut emulation or simultaneous mix + stem routing.
+          draft: false
+          prerelease: false
+          files: release-assets/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
