@@ -235,9 +235,13 @@ namespace Replicant909
             apvts, "MULTI_COUNT", multiCountSelector);
 
         triggerButton.setButtonText("TRIGGER [" + juce::String(VOICE_SHORT_NAMES[engine.getSelectedVoice()]) + "]");
-        triggerButton.setTooltip("Trigger selected voice with multiplier roll");
-        triggerButton.onClick = [this]() {
-            engine.triggerSelectedVoice(0.95f, 0.6f);
+        triggerButton.setTooltip("Hold to sustain note multiplier roll, or tap for burst");
+        triggerButton.onTriggerDown = [this]() {
+            engine.startVoiceHold(engine.getSelectedVoice(), 0.95f, 0.6f);
+            repaint();
+        };
+        triggerButton.onTriggerUp = [this]() {
+            engine.stopVoiceHold(engine.getSelectedVoice());
             repaint();
         };
         addAndMakeVisible(triggerButton);

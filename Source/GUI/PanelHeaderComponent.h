@@ -3,6 +3,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include "Theme909.h"
+#include "TriggerHoldButton.h"
 #include "../DSP/DrumEngine909.h"
 #include "../DSP/GrooveSequencer909.h"
 #include <functional>
@@ -75,7 +76,7 @@ namespace Replicant909
         // Note Multiplier & Trigger Burst controls
         juce::ToggleButton multiToggle;
         juce::ComboBox multiCountSelector;
-        juce::TextButton triggerButton;
+        TriggerHoldButton triggerButton;
 
         // Drawer toggle button
         juce::TextButton patternDrawerButton;

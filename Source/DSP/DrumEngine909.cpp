@@ -57,6 +57,8 @@ namespace Replicant909
         }
         for (auto& q : queuedTriggers)
             q.active = false;
+        for (auto& h : voiceHolds)
+            h.isHeld = false;
     }
 
     VoiceBase* DrumEngine909::getVoice(int index) noexcept
@@ -159,6 +161,68 @@ namespace Replicant909
             triggerVoice(selectedVoice, velocity, stepAccent);
     }
 
+    void DrumEngine909::startVoiceHold(int voiceIndex, float velocity, float stepAccent)
+    {
+        if (voiceIndex < 0 || voiceIndex >= NUM_VOICES)
+            return;
+
+        selectedVoice = voiceIndex;
+
+        // Clear any previous queued triggers for this specific voice
+        for (auto& q : queuedTriggers)
+        {
+            if (q.voiceIndex == voiceIndex)
+                q.active = false;
+        }
+
+        // Trigger hit 0 immediately
+        triggerVoice(voiceIndex, velocity, stepAccent);
+
+        if (!multiplierEnabled || multiplierCount <= 1)
+            return;
+
+        double bpm = (currentBpm >= 30.0) ? currentBpm : 128.0;
+        double stepSeconds = 15.0 / bpm;
+        double stepSamples = stepSeconds * sampleRate;
+        int intervalSamples = static_cast<int>(std::round(stepSamples / static_cast<double>(multiplierCount)));
+        if (intervalSamples < 64)
+            intervalSamples = 64;
+
+        auto& h = voiceHolds[voiceIndex];
+        h.isHeld = true;
+        h.velocity = velocity;
+        h.stepAccent = stepAccent;
+        h.samplesUntilNextHit = intervalSamples;
+        h.rollCounter = 1;
+    }
+
+    void DrumEngine909::stopVoiceHold(int voiceIndex)
+    {
+        if (voiceIndex >= 0 && voiceIndex < NUM_VOICES)
+        {
+            voiceHolds[voiceIndex].isHeld = false;
+            voiceHolds[voiceIndex].samplesUntilNextHit = 0;
+            for (auto& q : queuedTriggers)
+            {
+                if (q.voiceIndex == voiceIndex)
+                    q.active = false;
+            }
+        }
+    }
+
+    void DrumEngine909::stopAllVoiceHolds()
+    {
+        for (int v = 0; v < NUM_VOICES; ++v)
+            stopVoiceHold(v);
+    }
+
+    bool DrumEngine909::isVoiceHeld(int voiceIndex) const noexcept
+    {
+        if (voiceIndex >= 0 && voiceIndex < NUM_VOICES)
+            return voiceHolds[voiceIndex].isHeld;
+        return false;
+    }
+
     void DrumEngine909::processMidi(const juce::MidiBuffer& midiMessages)
     {
         for (const auto metadata : midiMessages)
@@ -173,9 +237,17 @@ namespace Replicant909
                     float vel = static_cast<float>(msg.getVelocity()) / 127.0f;
                     float stepAcc = (vel > 0.75f ? 1.0f : 0.0f);
                     if (multiplierEnabled && multiplierCount > 1)
-                        triggerVoiceMultiplied(inst, vel, stepAcc, multiplierCount);
+                        startVoiceHold(inst, vel, stepAcc);
                     else
                         triggerVoice(inst, vel, stepAcc);
+                }
+            }
+            else if (msg.isNoteOff())
+            {
+                int inst = midiNoteToInstrument(msg.getNoteNumber());
+                if (inst >= 0 && inst < NUM_VOICES)
+                {
+                    stopVoiceHold(inst);
                 }
             }
         }
@@ -246,6 +318,7 @@ namespace Replicant909
             std::array<TriggerEvent, 16> blockEvents;
             int numEvents = 0;
 
+            // 1. Collect one-shot triggers
             for (auto& q : queuedTriggers)
             {
                 if (q.active && q.voiceIndex == v && q.samplesUntilTrigger < numSamples)
@@ -260,6 +333,36 @@ namespace Replicant909
                     }
                     q.active = false;
                 }
+            }
+
+            // 2. Collect sustained hold roll triggers
+            if (voiceHolds[v].isHeld && multiplierEnabled && multiplierCount > 1)
+            {
+                double bpm = (currentBpm >= 30.0) ? currentBpm : 128.0;
+                double stepSeconds = 15.0 / bpm;
+                double stepSamples = stepSeconds * sampleRate;
+                int intervalSamples = static_cast<int>(std::round(stepSamples / static_cast<double>(multiplierCount)));
+                if (intervalSamples < 64)
+                    intervalSamples = 64;
+
+                auto& h = voiceHolds[v];
+                while (h.samplesUntilNextHit < numSamples && numEvents < static_cast<int>(blockEvents.size()))
+                {
+                    bool isMainHit = (h.rollCounter % multiplierCount == 0);
+                    float nextVel = isMainHit ? h.velocity : (h.velocity * 0.88f);
+                    float nextAcc = isMainHit ? h.stepAccent : 0.0f;
+
+                    blockEvents[numEvents++] = {
+                        std::max(0, h.samplesUntilNextHit),
+                        nextVel,
+                        nextAcc
+                    };
+
+                    h.rollCounter++;
+                    h.samplesUntilNextHit += intervalSamples;
+                }
+
+                h.samplesUntilNextHit -= numSamples;
             }
 
             if (numEvents > 1)

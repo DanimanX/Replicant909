@@ -395,7 +395,101 @@ int main()
             return 1;
         }
 
-        std::cout << "PASSED (Voice selection, 4x roll burst, APVTS sync & MIDI note multiplication verified)" << std::endl;
+        // Send MIDI Note-Off for Bass Drum and clear hold
+        juce::MidiBuffer midiOff;
+        midiOff.addEvent(juce::MidiMessage::noteOff(1, 36), 0);
+        block.clear();
+        processor.processBlock(block, midiOff);
+
+        // Reset engine to clean state for next test
+        processor.getEngine().reset();
+
+        // 5. Test Sustained Trigger Hold (User keeps button pressed down)
+        processor.getEngine().startVoiceHold(CH, 0.90f, 0.5f);
+        if (!processor.getEngine().isVoiceHeld(CH))
+        {
+            std::cerr << "FAILED: isVoiceHeld(CH) returned false after startVoiceHold!" << std::endl;
+            return 1;
+        }
+
+        // Render 25 blocks while holding: audio must continue without interruption
+        int activeBlocks = 0;
+        for (int b = 0; b < 25; ++b)
+        {
+            block.clear();
+            processor.processBlock(block, emptyMidi);
+            if (block.getRMSLevel(0, 0, 512) > 0.005f)
+                activeBlocks++;
+        }
+        if (activeBlocks < 20)
+        {
+            std::cerr << "FAILED: Sustained trigger hold stopped prematurely (active blocks: " << activeBlocks << "/25)!" << std::endl;
+            return 1;
+        }
+
+        // Release trigger hold
+        processor.getEngine().stopVoiceHold(CH);
+        if (processor.getEngine().isVoiceHeld(CH))
+        {
+            std::cerr << "FAILED: isVoiceHeld(CH) returned true after stopVoiceHold!" << std::endl;
+            return 1;
+        }
+
+        // Render until audio decays to silence (up to 120 blocks ~1.4s)
+        for (int b = 0; b < 120; ++b)
+        {
+            block.clear();
+            processor.processBlock(block, emptyMidi);
+            if (block.getRMSLevel(0, 0, 512) < 0.0005f)
+                break;
+        }
+        float releaseRms = block.getRMSLevel(0, 0, 512);
+        if (releaseRms > 0.001f)
+        {
+            std::cerr << "FAILED: Sound did not cease after releasing trigger hold (RMS: " << releaseRms << ")!" << std::endl;
+            return 1;
+        }
+
+        // 6. Test MIDI Note-On Hold and Note-Off Release
+        juce::MidiBuffer midiNoteOn;
+        midiNoteOn.addEvent(juce::MidiMessage::noteOn(1, 38, (juce::uint8)115), 0);
+        block.clear();
+        processor.processBlock(block, midiNoteOn);
+
+        activeBlocks = 0;
+        for (int b = 0; b < 20; ++b)
+        {
+            block.clear();
+            processor.processBlock(block, emptyMidi);
+            if (block.getRMSLevel(0, 0, 512) > 0.005f)
+                activeBlocks++;
+        }
+        if (activeBlocks < 15)
+        {
+            std::cerr << "FAILED: MIDI Note sustained hold stopped prematurely (active blocks: " << activeBlocks << "/20)!" << std::endl;
+            return 1;
+        }
+
+        juce::MidiBuffer midiNoteOff;
+        midiNoteOff.addEvent(juce::MidiMessage::noteOff(1, 38), 0);
+        block.clear();
+        processor.processBlock(block, midiNoteOff);
+
+        for (int b = 0; b < 120; ++b)
+        {
+            block.clear();
+            processor.processBlock(block, emptyMidi);
+            if (block.getRMSLevel(0, 0, 512) < 0.0005f)
+                break;
+        }
+        float midiReleaseRms = block.getRMSLevel(0, 0, 512);
+        if (midiReleaseRms > 0.001f)
+        {
+            std::cerr << "FAILED: Sound did not cease after MIDI Note-Off (RMS: " << midiReleaseRms << ")!" << std::endl;
+            return 1;
+        }
+
+        std::cout << "PASSED (Sustained button hold, dynamic replenishing roll, and MIDI Note-On/Off hold verified)" << std::endl;
     }
 
     std::cout << "========================================" << std::endl;

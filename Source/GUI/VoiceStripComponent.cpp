@@ -113,12 +113,15 @@ namespace Replicant909
 
         // 6. Manual Audition Trigger Button
         triggerButton.setButtonText(VOICE_SHORT_NAMES[voiceIndex]);
-        triggerButton.onClick = [this]() {
+        triggerButton.setTooltip("Hold to sustain note multiplier roll, or tap for burst");
+        triggerButton.onTriggerDown = [this]() {
             engine.setSelectedVoice(voiceIndex);
-            if (engine.isMultiplierEnabled() && engine.getMultiplierCount() > 1)
-                engine.triggerVoiceMultiplied(voiceIndex, 0.95f, 0.5f, engine.getMultiplierCount());
-            else
-                engine.triggerVoice(voiceIndex, 0.95f, 0.5f);
+            engine.startVoiceHold(voiceIndex, 0.95f, 0.5f);
+            if (auto* top = getTopLevelComponent())
+                top->repaint();
+        };
+        triggerButton.onTriggerUp = [this]() {
+            engine.stopVoiceHold(voiceIndex);
             if (auto* top = getTopLevelComponent())
                 top->repaint();
         };

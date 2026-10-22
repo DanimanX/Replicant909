@@ -5,6 +5,7 @@
 #include "../Common909.h"
 #include "../DSP/DrumEngine909.h"
 #include "Theme909.h"
+#include "TriggerHoldButton.h"
 
 namespace Replicant909
 {
@@ -36,7 +37,7 @@ namespace Replicant909
         juce::Slider panSlider;
 
         // Trigger button
-        juce::TextButton triggerButton;
+        TriggerHoldButton triggerButton;
 
         // Slider attachments
         std::vector<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>> attachments;

@@ -123,6 +123,12 @@ namespace Replicant909
         // Trigger currently selected voice with multiplier if enabled
         void triggerSelectedVoice(float velocity = 0.95f, float stepAccent = 0.5f);
 
+        // Continuous Hold Roll / Sustained Multiplier
+        void startVoiceHold(int voiceIndex, float velocity = 0.95f, float stepAccent = 0.5f);
+        void stopVoiceHold(int voiceIndex);
+        void stopAllVoiceHolds();
+        bool isVoiceHeld(int voiceIndex) const noexcept;
+
     private:
         struct MultiplierHit
         {
@@ -133,8 +139,18 @@ namespace Replicant909
             bool active = false;
         };
 
+        struct VoiceHoldState
+        {
+            bool isHeld = false;
+            float velocity = 0.8f;
+            float stepAccent = 0.0f;
+            int samplesUntilNextHit = 0;
+            int rollCounter = 0;
+        };
+
         static constexpr int MAX_QUEUED_TRIGGERS = 128;
         std::array<MultiplierHit, MAX_QUEUED_TRIGGERS> queuedTriggers {};
+        std::array<VoiceHoldState, NUM_VOICES> voiceHolds {};
 
         bool multiplierEnabled = false;
         int multiplierCount = 2; // Default 2x
