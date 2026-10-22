@@ -130,7 +130,7 @@ namespace Replicant909
         g.drawVerticalLine(getWidth() - 1, 0.0f, static_cast<float>(getHeight()));
 
         // Strip Header Banner
-        auto headerRect = juce::Rectangle<float>(0, 0, bounds.getWidth() - 1, 24);
+        auto headerRect = juce::Rectangle<float>(0, 0, bounds.getWidth() - 1, 22);
         g.setColour((voiceIndex % 2 == 0) ? theme.accentPrimary : theme.accentSecondary);
         g.fillRect(headerRect.removeFromTop(3.0f));
 
@@ -139,43 +139,41 @@ namespace Replicant909
         g.drawText(VOICE_SHORT_NAMES[voiceIndex], 0, 4, getWidth() - 1, 16, juce::Justification::centred);
 
         // Labels for knobs
-        g.setFont(juce::FontOptions(8.5f, juce::Font::bold));
+        g.setFont(juce::FontOptions(8.0f, juce::Font::bold));
         g.setColour(theme.silkscreenText.withAlpha(0.85f));
 
-        int yOffset = 24;
+        // Row 1: TUNE
         if (tuneSlider.isVisible())
-        {
-            g.drawText("TUNE", 0, yOffset, getWidth(), 12, juce::Justification::centred);
-            yOffset += 48;
-        }
+            g.drawText("TUNE", 0, 22, getWidth(), 11, juce::Justification::centred);
 
+        // Row 2: ATTACK / TONE
         if (attackOrToneSlider.isVisible())
         {
             juce::String lbl = (voiceIndex == BD) ? "ATTACK" : "TONE";
-            g.drawText(lbl, 0, yOffset, getWidth(), 12, juce::Justification::centred);
-            yOffset += 48;
+            g.drawText(lbl, 0, 62, getWidth(), 11, juce::Justification::centred);
         }
 
+        // Row 3: DECAY / SNAPPY / REVERB
         if (decayOrSnappyOrReverbSlider.isVisible())
         {
             juce::String lbl = "DECAY";
             if (voiceIndex == SD) lbl = "SNAPPY";
             else if (voiceIndex == CP) lbl = "REVERB";
-            g.drawText(lbl, 0, yOffset, getWidth(), 12, juce::Justification::centred);
-            yOffset += 48;
+            g.drawText(lbl, 0, 102, getWidth(), 11, juce::Justification::centred);
         }
 
-        g.drawText("PAN", 0, yOffset, getWidth(), 12, juce::Justification::centred);
-        yOffset += 48;
+        // Row 4: PAN
+        g.drawText("PAN", 0, 142, getWidth(), 11, juce::Justification::centred);
 
-        g.drawText("LEVEL", 0, yOffset, getWidth(), 12, juce::Justification::centred);
+        // Row 5: LEVEL
+        g.drawText("LEVEL", 0, 182, getWidth(), 11, juce::Justification::centred);
 
         // Real-time Peak LED Meter above the trigger button
         if (auto* v = engine.getVoice(voiceIndex))
         {
             float peak = v->getPeak();
             float meterCx = static_cast<float>(getWidth()) * 0.5f;
-            float meterCy = triggerButton.getY() - 10.0f;
+            float meterCy = 227.0f;
             juce::Colour meterCol = theme.meterGreen;
             if (peak > 0.85f) meterCol = theme.meterRed;
             else if (peak > 0.5f) meterCol = theme.meterYellow;
@@ -186,37 +184,31 @@ namespace Replicant909
 
     void SingleVoiceStrip::resized()
     {
-        int y = 36;
-        int knobSize = 36;
+        int knobSize = 28;
         int xPos = (getWidth() - knobSize) / 2;
 
+        // Row 1: TUNE (y = 33)
         if (tuneSlider.isVisible())
-        {
-            tuneSlider.setBounds(xPos, y, knobSize, knobSize);
-            y += 48;
-        }
+            tuneSlider.setBounds(xPos, 33, knobSize, knobSize);
 
+        // Row 2: ATTACK or TONE (y = 73)
         if (attackOrToneSlider.isVisible())
-        {
-            attackOrToneSlider.setBounds(xPos, y, knobSize, knobSize);
-            y += 48;
-        }
+            attackOrToneSlider.setBounds(xPos, 73, knobSize, knobSize);
 
+        // Row 3: DECAY or SNAPPY or REVERB (y = 113)
         if (decayOrSnappyOrReverbSlider.isVisible())
-        {
-            decayOrSnappyOrReverbSlider.setBounds(xPos, y, knobSize, knobSize);
-            y += 48;
-        }
+            decayOrSnappyOrReverbSlider.setBounds(xPos, 113, knobSize, knobSize);
 
-        // Pan slider
-        panSlider.setBounds(xPos, y, knobSize, knobSize);
-        y += 48;
+        // Row 4: PAN (y = 153)
+        panSlider.setBounds(xPos, 153, knobSize, knobSize);
 
-        // Level slider
-        levelSlider.setBounds(xPos, y, knobSize, knobSize);
+        // Row 5: LEVEL (y = 193)
+        levelSlider.setBounds(xPos, 193, knobSize, knobSize);
 
         // Trigger button at bottom of strip
-        triggerButton.setBounds(xPos - 4, getHeight() - 38, knobSize + 8, 28);
+        int btnWidth = juce::jmin(getWidth() - 10, 48);
+        int btnX = (getWidth() - btnWidth) / 2;
+        triggerButton.setBounds(btnX, 236, btnWidth, 24);
     }
 
     // =========================================================================
@@ -247,6 +239,19 @@ namespace Replicant909
         {
             strips[i]->setBounds(static_cast<int>(i * stripWidth), 0,
                                  static_cast<int>(stripWidth), getHeight());
+        }
+    }
+
+    void VoiceStripRackComponent::lookAndFeelChanged()
+    {
+        repaint();
+        for (int i = 0; i < NUM_VOICES; ++i)
+        {
+            if (strips[i] != nullptr)
+            {
+                strips[i]->sendLookAndFeelChange();
+                strips[i]->repaint();
+            }
         }
     }
 

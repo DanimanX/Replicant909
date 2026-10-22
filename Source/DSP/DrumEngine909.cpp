@@ -76,6 +76,9 @@ namespace Replicant909
         if (voiceIndex < 0 || voiceIndex >= NUM_VOICES)
             return;
 
+        if (!isVoiceAudible(voiceIndex))
+            return;
+
         // Calculate dynamic accent scale
         bool hasAccent = (stepAccent > 0.0f) || (velocity > 0.75f);
         float accentVal = accentCircuit.computeAccentGain(hasAccent, velocity);

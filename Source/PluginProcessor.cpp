@@ -83,7 +83,11 @@ namespace Replicant909
         if (auto* p = apvts.getRawParameterValue("SKIN"))
         {
             int skinIdx = static_cast<int>(*p);
-            ThemeManager::getInstance().setSkin(static_cast<SkinId>(skinIdx));
+            if (skinIdx != lastSkinIndex)
+            {
+                lastSkinIndex = skinIdx;
+                ThemeManager::getInstance().setSkin(static_cast<SkinId>(skinIdx));
+            }
         }
 
         // Voice parameters

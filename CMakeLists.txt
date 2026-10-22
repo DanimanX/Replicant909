@@ -92,6 +92,8 @@ set(R909_SOURCES
     Source/GUI/StepSequencerComponent.cpp
     Source/GUI/RearPanelComponent.h
     Source/GUI/RearPanelComponent.cpp
+    Source/GUI/PatternDrawer909.h
+    Source/GUI/PatternDrawer909.cpp
 
     # Presets & MIDI
     Source/Presets/PresetBank909.h

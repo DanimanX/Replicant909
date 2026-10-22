@@ -64,6 +64,39 @@ Replicant909 features a procedural, resolution-independent vector rendering engi
 
 ---
 
+## ☵ Sliding Pattern Drawer & Algorithmic Generator
+![Pattern Drawer Open](assets/replicant909_pattern_drawer.png)
+
+Click the **☵ PATTERN DRAWER** button in the header bar to reveal the full-height slide-out programming workstation:
+
+1. **Algorithmic Procedural Generator**:
+   * **7 Curated Musical Styles**:
+     * *Classic House* (4-on-the-floor kick, offbeat open hat, clap on 2 & 4, syncopated rimshots, 54.2% swing)
+     * *Detroit Driving Techno* (heavy kick, ride cymbal 8ths, tuned toms groove)
+     * *Acid Jack & Warehouse* (aggressive kick, accented rimshots, 16th hats, 58.3% swing)
+     * *Hard Techno & Rave* (relentless kick, snare flams, crash on downbeats)
+     * *Electro Funk Breakbeat* (syncopated broken kicks, 62.5% swing)
+     * *Minimal Click & Microhouse* (sparse, organic micro-percussion)
+     * *Algorithmic Cyber Chaos* (stochastic multi-voice distribution)
+   * **Density & Probability Sliders**: Kick Density, Snare/Clap, Hats Shimmer, Toms/Perc, Accent Probability, Flam Probability.
+   * **Action Buttons**: `🎲 GENERATE`, `🧬 MUTATE` (20% intelligent variation), and `↺ CLEAR ALL`.
+
+2. **12-Track x 16-Step Matrix Programmer**:
+   * Simultaneous overview of all 11 drum voices plus the global ACCENT track.
+   * **Per-Track Mute [M] & Solo [S]** buttons with real-time audio muting.
+   * **Dual-State & Tri-State Cell Toggling**: Off, Normal Hit, Accent (core highlight), and Flam (split trigger line).
+   * **Real-Time Running Playhead**: Sweeping vertical cursor tracking playback across all 12 lanes.
+   * **Quick Pattern Tools**: `4x4 BD`, `Offbeat OH`, `Clap 2&4`, `<< SHIFT`, `SHIFT >>`, and `💾 EXPORT MIDI`.
+
+---
+
+## ⏱️ Direct Editable Tempo Display
+* **Direct Numeric Typing**: Click directly on the 7-segment digital tempo readout to type any BPM (30 to 300) from the keyboard and press Enter.
+* **Vertical Nudge Drag**: Drag up or down on the digits to smoothly dial in the tempo.
+* **Rotary Dial & Tap Tempo**: Traditional rotary dragging and authentic hardware TAP tempo button are simultaneously supported and synchronized.
+
+---
+
 ## 🔌 Multi-Bus Audio Routing & Rear Panel
 
 In addition to the Master Stereo Bus (Out 1-2), Replicant909 provides **10 Individual Audio Buses**:

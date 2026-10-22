@@ -17,17 +17,48 @@ namespace Replicant909
         addAndMakeVisible(stepSequencer);
         addChildComponent(rearPanel);
 
+        // Slide-down pattern drawer
+        patternDrawer = std::make_unique<PatternDrawer909>(p.getAPVTS(), p.getEngine(), p.getSequencer());
+        patternDrawer->onCloseRequested = [this]() { setPatternDrawerOpen(false); };
+        addChildComponent(patternDrawer.get());
+
+        // Header drawer button callback
+        headerComponent.onToggleDrawer = [this]() {
+            setPatternDrawerOpen(!drawerOpen);
+        };
+
         rearPanelToggleBtn.setButtonText("REAR PANEL");
         rearPanelToggleBtn.onClick = [this]() {
             showRearPanel = !showRearPanel;
             rearPanel.setVisible(showRearPanel);
             rearPanelToggleBtn.setButtonText(showRearPanel ? "FRONT PANEL" : "REAR PANEL");
-            resized();
+            int baseHeight = showRearPanel ? 580 : 460;
+            int totalHeight = drawerOpen ? (baseHeight + PatternDrawer909::DRAWER_HEIGHT) : baseHeight;
+            setSize(1040, totalHeight);
         };
         addAndMakeVisible(rearPanelToggleBtn);
 
-        // Standard 909 desktop footprint: 1040 x 620
-        setSize(1040, 620);
+        // Theme switch listener: triggers instantaneous re-styling & repainting of the entire tree
+        ThemeManager::getInstance().addListener([this]() {
+            sendLookAndFeelChange();
+            repaint();
+            headerComponent.sendLookAndFeelChange();
+            headerComponent.repaint();
+            voiceStripRack.sendLookAndFeelChange();
+            voiceStripRack.repaint();
+            stepSequencer.sendLookAndFeelChange();
+            stepSequencer.repaint();
+            if (patternDrawer != nullptr)
+            {
+                patternDrawer->sendLookAndFeelChange();
+                patternDrawer->repaint();
+            }
+            rearPanel.sendLookAndFeelChange();
+            rearPanel.repaint();
+        });
+
+        // Compact Roland 909 desktop footprint: 1040 x 460 (Zero dead space!)
+        setSize(1040, 460);
         setResizable(false, false);
 
         startTimerHz(30); // 30 FPS telemetry updates
@@ -38,10 +69,25 @@ namespace Replicant909
         setLookAndFeel(nullptr);
     }
 
+    void PluginEditor::setPatternDrawerOpen(bool shouldBeOpen)
+    {
+        drawerOpen = shouldBeOpen;
+        headerComponent.setDrawerState(shouldBeOpen);
+        if (patternDrawer != nullptr)
+            patternDrawer->setVisible(shouldBeOpen);
+
+        int baseHeight = showRearPanel ? 580 : 460;
+        int totalHeight = drawerOpen ? (baseHeight + PatternDrawer909::DRAWER_HEIGHT) : baseHeight;
+        setSize(1040, totalHeight);
+    }
+
     void PluginEditor::timerCallback()
     {
         voiceStripRack.updateMeters();
         stepSequencer.updatePlayhead();
+        headerComponent.updateTempoDisplay();
+        if (drawerOpen && patternDrawer != nullptr)
+            patternDrawer->refresh();
         if (showRearPanel)
             rearPanel.setActiveBusesMask(processor.getActiveBusesMask());
     }
@@ -91,11 +137,14 @@ namespace Replicant909
         // Leave room for side cheeks (14px on left and right)
         bounds.reduce(14, 0);
 
-        // Top Header: 72px
-        headerComponent.setBounds(bounds.removeFromTop(72));
+        // If pattern drawer is open, place it at the bottom
+        if (drawerOpen && patternDrawer != nullptr)
+        {
+            patternDrawer->setBounds(bounds.removeFromBottom(PatternDrawer909::DRAWER_HEIGHT));
+        }
 
         // Rear panel toggle button in bottom right corner
-        rearPanelToggleBtn.setBounds(bounds.getRight() - 95, bounds.getBottom() - 24, 85, 20);
+        rearPanelToggleBtn.setBounds(bounds.getRight() - 95, bounds.getBottom() - 20, 85, 18);
 
         if (showRearPanel)
         {
@@ -105,7 +154,10 @@ namespace Replicant909
         // Bottom Sequencer: 114px
         stepSequencer.setBounds(bounds.removeFromBottom(114));
 
-        // Middle Drum Voice Strip Rack takes remaining vertical space (~434px)
+        // Top Header: 64px
+        headerComponent.setBounds(bounds.removeFromTop(64));
+
+        // Middle Drum Voice Strip Rack takes remaining vertical space (~282px, compact & gap-free)
         voiceStripRack.setBounds(bounds);
     }
 }

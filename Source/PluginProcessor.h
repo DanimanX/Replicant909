@@ -61,6 +61,7 @@ namespace Replicant909
         PresetBank909 presetBank;
 
         int currentProgram = 0;
+        int lastSkinIndex = -1;
         uint32_t activeBusesMask = 1u; // Bit 0 (Master) always active
 
         // Reused individual bus pointer vector

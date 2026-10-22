@@ -35,6 +35,7 @@ namespace Replicant909
 
         void paint(juce::Graphics& g) override;
         void resized() override;
+        void lookAndFeelChanged() override;
 
         void updatePlayhead();
 

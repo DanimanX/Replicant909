@@ -51,12 +51,59 @@ namespace Replicant909
         void setJackCutMode(bool cut) noexcept   { jackCutMode = cut; }
         bool getJackCutMode() const noexcept     { return jackCutMode; }
 
+        // Mute & Solo
+        void setMuted(int voiceIndex, bool mute) noexcept
+        {
+            if (voiceIndex >= 0 && voiceIndex < NUM_VOICES)
+                muted[voiceIndex] = mute;
+        }
+
+        bool isMuted(int voiceIndex) const noexcept
+        {
+            if (voiceIndex >= 0 && voiceIndex < NUM_VOICES)
+                return muted[voiceIndex];
+            return false;
+        }
+
+        void setSoloed(int voiceIndex, bool solo) noexcept
+        {
+            if (voiceIndex >= 0 && voiceIndex < NUM_VOICES)
+                soloed[voiceIndex] = solo;
+        }
+
+        bool isSoloed(int voiceIndex) const noexcept
+        {
+            if (voiceIndex >= 0 && voiceIndex < NUM_VOICES)
+                return soloed[voiceIndex];
+            return false;
+        }
+
+        bool hasAnySolo() const noexcept
+        {
+            for (bool s : soloed)
+                if (s) return true;
+            return false;
+        }
+
+        bool isVoiceAudible(int voiceIndex) const noexcept
+        {
+            if (voiceIndex < 0 || voiceIndex >= NUM_VOICES)
+                return false;
+            if (muted[voiceIndex])
+                return false;
+            if (hasAnySolo())
+                return soloed[voiceIndex];
+            return true;
+        }
+
     private:
         double sampleRate = 44100.0;
         float masterVolume = 0.85f;
         bool jackCutMode = true; // In TR-909, plugging individual jack cuts signal from Master
 
         std::array<std::unique_ptr<VoiceBase>, NUM_VOICES> voices;
+        std::array<bool, NUM_VOICES> muted {};
+        std::array<bool, NUM_VOICES> soloed {};
         TotalAccentCircuit accentCircuit;
 
         // Temporary scratch buffer for rendering single voice across the block

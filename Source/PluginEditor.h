@@ -7,6 +7,7 @@
 #include "GUI/VoiceStripComponent.h"
 #include "GUI/StepSequencerComponent.h"
 #include "GUI/RearPanelComponent.h"
+#include "GUI/PatternDrawer909.h"
 
 namespace Replicant909
 {
@@ -20,6 +21,9 @@ namespace Replicant909
         void paint(juce::Graphics& g) override;
         void resized() override;
 
+        void setPatternDrawerOpen(bool shouldBeOpen);
+        bool isPatternDrawerOpen() const noexcept { return drawerOpen; }
+
     private:
         PluginProcessor& processor;
         LookAndFeel909 lnf;
@@ -29,6 +33,9 @@ namespace Replicant909
         VoiceStripRackComponent voiceStripRack;
         StepSequencerComponent stepSequencer;
         RearPanelComponent rearPanel;
+        std::unique_ptr<PatternDrawer909> patternDrawer;
+
+        bool drawerOpen = false;
 
         // Toggle button for Rear Panel view
         juce::TextButton rearPanelToggleBtn;

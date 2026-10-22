@@ -142,6 +142,15 @@ namespace Replicant909
         repaint();
     }
 
+    void StepSequencerComponent::lookAndFeelChanged()
+    {
+        updateTrackSelection();
+        for (auto& sb : stepButtons)
+            if (sb != nullptr)
+                sb->repaint();
+        repaint();
+    }
+
     void StepSequencerComponent::paint(juce::Graphics& g)
     {
         const auto& theme = ThemeManager::getInstance().getCurrentTheme();
