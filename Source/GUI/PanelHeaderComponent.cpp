@@ -135,10 +135,11 @@ namespace Replicant909
         // 5. Play / Stop Button
         playStopButton.setButtonText("RUN / STOP");
         playStopButton.onClick = [this]() {
-            if (sequencer.isPlaying())
+            if (sequencer.isTransportArmed() || sequencer.isPlaying())
                 sequencer.stop();
             else
                 sequencer.start();
+            updateTempoDisplay();
             repaint();
         };
         addAndMakeVisible(playStopButton);
@@ -240,6 +241,11 @@ namespace Replicant909
     {
         if (tempoDisplay != nullptr)
             tempoDisplay->updateDisplay();
+
+        bool isArmed = sequencer.isTransportArmed() || sequencer.isPlaying();
+        juce::String expectedText = isArmed ? "STOP" : "RUN / STOP";
+        if (playStopButton.getButtonText() != expectedText)
+            playStopButton.setButtonText(expectedText);
     }
 
     void PanelHeaderComponent::paint(juce::Graphics& g)

@@ -23,6 +23,7 @@ namespace Replicant909
         void start();
         void stop();
         bool isPlaying() const noexcept { return playing.load(std::memory_order_relaxed); }
+        bool isTransportArmed() const noexcept { return playRequested.load(std::memory_order_relaxed); }
 
         void setBpm(double newBpm);
         double getBpm() const noexcept { return bpm; }
@@ -62,6 +63,8 @@ namespace Replicant909
         bool syncToHost = true;
         int lastHostStep = -1;
 
+        std::atomic<bool> playRequested { false };
+        std::atomic<bool> manualPlayWhileHostStopped { false };
         std::atomic<bool> playing { false };
         std::atomic<int> currentStep { 0 };
 

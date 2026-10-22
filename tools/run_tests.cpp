@@ -183,7 +183,8 @@ int main()
         PluginProcessor processor;
         processor.prepareToPlay(44100.0, 512);
 
-        // Verify BD activates on all standard C octaves (36, 48, 60, 72) and GM 35
+        // Verify BD activates on all standard C octaves (36, 48, 60, 72) and GM 35,
+        // and that voices from the internal pattern (e.g. Snare, Hihat, Clap) are NOT triggered!
         for (int note : { 35, 36, 48, 60, 72 })
         {
             processor.getEngine().reset();
@@ -201,6 +202,16 @@ int main()
                 return 1;
             }
 
+            // Verify the rest of the pattern did NOT trigger!
+            auto* sdVoice = processor.getEngine().getVoice(SD);
+            auto* chVoice = processor.getEngine().getVoice(CH);
+            auto* cpVoice = processor.getEngine().getVoice(CP);
+            if (sdVoice->isActive() || chVoice->isActive() || cpVoice->isActive())
+            {
+                std::cerr << "FAILED: Pattern voices triggered when only BD MIDI note was sent!" << std::endl;
+                return 1;
+            }
+
             float rms = block.getRMSLevel(0, 0, 512);
             if (rms < 0.005f)
             {
@@ -209,7 +220,7 @@ int main()
             }
         }
 
-        std::cout << "PASSED (BD triggered successfully on Notes 35, 36, 48, 60, 72)" << std::endl;
+        std::cout << "PASSED (Only BD triggered on Notes 35, 36, 48, 60, 72; pattern remained silent)" << std::endl;
     }
 
     // Test 8: Host DAW Tempo Synchronization
@@ -272,8 +283,34 @@ int main()
             }
         }
 
+        // 3. Verify internal sequencer remains stopped while DAW is playing if user did not press RUN
+        if (processor.getSequencer().isPlaying())
+        {
+            std::cerr << "FAILED: Sequencer auto-started without user RUN request!" << std::endl;
+            return 1;
+        }
+
+        // 4. Verify user can arm/start sequencer to run with host
+        processor.getSequencer().start();
+        playHead.ppq = 4.25;
+        block.clear();
+        processor.processBlock(block, midi);
+        if (!processor.getSequencer().isPlaying())
+        {
+            std::cerr << "FAILED: Armed sequencer did not advance with host!" << std::endl;
+            return 1;
+        }
+
+        // 5. Verify user can stop sequencer
+        processor.getSequencer().stop();
+        if (processor.getSequencer().isPlaying())
+        {
+            std::cerr << "FAILED: Stopped sequencer is still playing!" << std::endl;
+            return 1;
+        }
+
         processor.setPlayHead(nullptr);
-        std::cout << "PASSED (Synchronized to 144 BPM and 98 BPM successfully)" << std::endl;
+        std::cout << "PASSED (Synchronized to 144 BPM and 98 BPM, verified disarmed/armed sequencer transport)" << std::endl;
     }
 
     std::cout << "========================================" << std::endl;

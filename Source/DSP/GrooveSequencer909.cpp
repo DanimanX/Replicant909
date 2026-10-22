@@ -91,12 +91,16 @@ namespace Replicant909
 
     void GrooveSequencer909::start()
     {
+        playRequested.store(true, std::memory_order_relaxed);
+        manualPlayWhileHostStopped.store(true, std::memory_order_relaxed);
         reset();
         playing.store(true, std::memory_order_relaxed);
     }
 
     void GrooveSequencer909::stop()
     {
+        playRequested.store(false, std::memory_order_relaxed);
+        manualPlayWhileHostStopped.store(false, std::memory_order_relaxed);
         playing.store(false, std::memory_order_relaxed);
         reset();
     }
@@ -190,14 +194,26 @@ namespace Replicant909
                         setBpm(*hostBpm);
                 }
 
-                if (pos->getIsPlaying())
-                {
-                    if (!playing.load(std::memory_order_relaxed))
-                    {
-                        start();
-                        lastHostStep = -1;
-                    }
+                const bool hostIsRolling = pos->getIsPlaying();
 
+                if (hostIsRolling)
+                    manualPlayWhileHostStopped.store(false, std::memory_order_relaxed);
+
+                // The sequencer ONLY advances if the user explicitly requested / armed playback (RUN)
+                const bool wantRunning = playRequested.load(std::memory_order_relaxed)
+                                         && (hostIsRolling || manualPlayWhileHostStopped.load(std::memory_order_relaxed));
+
+                if (wantRunning != playing.load(std::memory_order_relaxed))
+                {
+                    playing.store(wantRunning, std::memory_order_relaxed);
+                    if (wantRunning)
+                        lastHostStep = -1;
+                    else
+                        reset();
+                }
+
+                if (wantRunning && hostIsRolling)
+                {
                     if (auto ppq = pos->getPpqPosition())
                     {
                         // In 4/4 time, 1 beat = 1 quarter note = 4 16th notes
@@ -224,14 +240,6 @@ namespace Replicant909
                         }
                     }
                 }
-                else
-                {
-                    if (playing.load(std::memory_order_relaxed))
-                    {
-                        stop();
-                        lastHostStep = -1;
-                    }
-                }
             }
         }
 
@@ -253,8 +261,8 @@ namespace Replicant909
         if (!playing.load(std::memory_order_relaxed))
             return;
 
-        // If syncToHost is enabled and host playhead is active, host transport drove steps above
-        if (syncToHost && playHead != nullptr)
+        // If host is actively driving steps via PPQ/time, internal clock should not run
+        if (syncToHost && playHead != nullptr && !manualPlayWhileHostStopped.load(std::memory_order_relaxed))
             return;
 
         // 3. Internal Clock Step Scheduling with authentic TR-909 Shuffle
