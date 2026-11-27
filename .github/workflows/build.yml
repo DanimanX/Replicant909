@@ -29,6 +29,11 @@ jobs:
             cmake_generator: "Unix Makefiles"
             artifact_name: "Replicant909-Linux-x86_64"
 
+          - os: ubuntu-22.04-arm
+            platform: linux
+            cmake_generator: "Unix Makefiles"
+            artifact_name: "Replicant909-Linux-arm64"
+
           - os: windows-latest
             platform: windows
             cmake_generator: "Ninja"
@@ -85,6 +90,7 @@ jobs:
           if [ "${{ matrix.platform }}" = "macos" ]; then
             EXTRA_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"
           fi
+          echo "Runner arch: $(uname -m)"
           cmake -B build -G "${{ matrix.cmake_generator }}" -DCMAKE_BUILD_TYPE=Release $EXTRA_FLAGS
 
       # ------------------------------------------------------------------------
@@ -129,6 +135,11 @@ jobs:
             find build -type f -executable -name "Replicant909" ! -name "*.so" ! -name "*.o" ! -path "*/CMakeFiles/*" -exec cp {} package-staging/ \; || true
           fi
 
+          # Report the packaged binary architecture (x86_64 vs aarch64)
+          if [ "${{ matrix.platform }}" = "linux" ]; then
+            file package-staging/Replicant909 || true
+          fi
+
           # Copy presets folder to package
           cp -R presets package-staging/ || true
 
@@ -154,7 +165,7 @@ jobs:
     name: Publish GitHub Release
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     concurrency:
@@ -170,11 +181,11 @@ jobs:
         id: versioning
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            RELEASE_TAG="${GITHUB_REF_NAME}"
-          else
-            RELEASE_TAG="v1.0.0"
+          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+            echo "Releases are published from tags only (got ${GITHUB_REF})." >&2
+            exit 1
           fi
+          RELEASE_TAG="${GITHUB_REF_NAME}"
           echo "tag=${RELEASE_TAG}" >> "${GITHUB_OUTPUT}"
           echo "RELEASE_TAG=${RELEASE_TAG}" >> "${GITHUB_ENV}"
 
@@ -200,6 +211,7 @@ jobs:
             ### 📦 Multiplatform Plug-in & Standalone Downloads
             * **macOS Universal:** `Replicant909-macOS-Universal.zip` (VST3, CLAP, AU `.component` and Standalone App for Apple Silicon & Intel)
             * **Linux x86_64:** `Replicant909-Linux-x86_64.zip` (VST3, CLAP, and Standalone for Ubuntu, Debian, Arch, Fedora)
+            * **Linux arm64:** `Replicant909-Linux-arm64.zip` (native aarch64 VST3, CLAP, and Standalone for Raspberry Pi 4/5, Asahi, Snapdragon X, ARM servers and arm64 desktops)
             * **Windows x64:** `Replicant909-Windows-x64.zip` (VST3, CLAP, and Standalone `.exe` for Windows 10/11)
 
             ### ⚡ 1:1 Circuit Emulation & Architecture

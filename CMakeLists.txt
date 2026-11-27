@@ -1,16 +1,30 @@
 cmake_minimum_required(VERSION 3.22)
-project(Replicant909 VERSION 1.0.5 LANGUAGES C CXX)
+project(Replicant909 VERSION 1.0.6 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# ------------------------------------------------------------------------------
+# Target Architecture
+# The DSP core is plain scalar C++ over JUCE, with no x86 intrinsics, so the
+# same sources build for x86_64, arm64/aarch64 and macOS Universal from one tree.
+# ------------------------------------------------------------------------------
+message(STATUS "Replicant909 target architecture: ${CMAKE_SYSTEM_PROCESSOR}")
 
 # ------------------------------------------------------------------------------
 # JUCE Dependency via FetchContent (JUCE 8)
 # ------------------------------------------------------------------------------
 include(FetchContent)
 
-if(EXISTS "/PROCESOS/ReplicantTr8s/build/_deps/juce-src/CMakeLists.txt")
-    set(FETCHCONTENT_SOURCE_DIR_JUCE "/PROCESOS/ReplicantTr8s/build/_deps/juce-src" CACHE PATH "" FORCE)
+# Optional offline/local JUCE checkout (useful on air-gapped builders and arm64 boxes):
+#   cmake -B build -DR909_JUCE_LOCAL_PATH=/path/to/JUCE
+# or export JUCE_LOCAL_PATH=/path/to/JUCE
+if(NOT DEFINED R909_JUCE_LOCAL_PATH AND DEFINED ENV{JUCE_LOCAL_PATH})
+    set(R909_JUCE_LOCAL_PATH "$ENV{JUCE_LOCAL_PATH}")
+endif()
+if(R909_JUCE_LOCAL_PATH AND EXISTS "${R909_JUCE_LOCAL_PATH}/CMakeLists.txt")
+    message(STATUS "Using local JUCE checkout: ${R909_JUCE_LOCAL_PATH}")
+    set(FETCHCONTENT_SOURCE_DIR_JUCE "${R909_JUCE_LOCAL_PATH}" CACHE PATH "" FORCE)
 endif()
 
 set(JUCE_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)

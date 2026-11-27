@@ -1,7 +1,7 @@
 # 🥁 Replicant909
 
 > **Circuit-Accurate 1:1 Roland TR-909 Emulation Plug-in & Standalone Drum Machine**  
-> Formats: **VST3**, **CLAP**, **AU (Component)**, and **Standalone** | Multiplatform: **macOS (Universal arm64/x86_64)**, **Linux (x86_64)**, **Windows (x64)**.
+> Formats: **VST3**, **CLAP**, **AU (Component)**, and **Standalone** | Multiplatform: **macOS (Universal arm64/x86_64)**, **Linux (x86_64 + arm64/aarch64)**, **Windows (x64)**.
 
 ---
 
@@ -172,6 +172,11 @@ sudo apt-get update && sudo apt-get install -y \
   libgl1-mesa-dev libgtk-3-dev xvfb
 ```
 
+The exact same package list works on **x86_64 and arm64/aarch64** (Raspberry Pi 4/5 with a 64-bit OS,
+Asahi Linux on Apple Silicon, ARM servers). The DSP core is scalar C++ over JUCE with no x86
+intrinsics, so no source changes are needed per architecture — CMake detects aarch64 and emits
+`aarch64-linux` VST3 bundles automatically.
+
 #### macOS
 * Xcode 15 or later with Command Line Tools.
 
@@ -196,6 +201,10 @@ cmake --build build --config Release --parallel
 # Run headless test suite
 ./build/run_tests
 ```
+
+Optional: to build against an existing local JUCE checkout instead of cloning it
+(useful on arm64 boards or offline machines), pass `-DR909_JUCE_LOCAL_PATH=/path/to/JUCE`
+or export `JUCE_LOCAL_PATH=/path/to/JUCE` before configuring.
 
 ---
 
